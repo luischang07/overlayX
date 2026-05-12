@@ -1,7 +1,9 @@
 #pragma once
 
 #include "interfaces/IRenderer.hpp"
+#include "infrastructure/SpikeDetector.hpp"
 #include <d2d1.h>
+#include <d2d1helper.h>
 #include <dwrite.h>
 #include <cmath>
 #include <chrono>
@@ -33,9 +35,15 @@ namespace overlayx
         return false;
 
       // DC render target for use with UpdateLayeredWindow
-      D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(
-          D2D1_RENDER_TARGET_TYPE_DEFAULT,
-          D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+      D2D1_RENDER_TARGET_PROPERTIES props;
+      props.type = D2D1_RENDER_TARGET_TYPE_DEFAULT;
+      props.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+      props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+      props.dpiX = 0;
+      props.dpiY = 0;
+      props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
+      props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
+
       hr = m_factory->CreateDCRenderTarget(&props, &m_renderTarget);
       return SUCCEEDED(hr);
     }
@@ -45,8 +53,45 @@ namespace overlayx
       if (!m_renderTarget || !m_hwnd)
         return;
 
-      int screenW = GetSystemMetrics(SM_CXSCREEN);
-      int screenH = GetSystemMetrics(SM_CYSCREEN);
+      HDC hdc_screen = GetDC(NULL);
+      int screenW = GetDeviceCaps(hdc_screen, DESKTOPHORZRES);
+      int screenH = GetDeviceCaps(hdc_screen, DESKTOPVERTRES);
+      ReleaseDC(NULL, hdc_screen);
+
+      // Update SpikeDetector with this overlay window's top-left screen offset
+      if (m_hwnd)
+      {
+        RECT wr = {};
+        if (GetWindowRect(m_hwnd, &wr))
+        {
+
+          // Try to get DPI for the window (Windows 10+)
+          UINT dpi = 0;
+          HMODULE shcore = LoadLibraryA("Shcore.dll");
+          if (shcore)
+          {
+            typedef HRESULT(WINAPI *GetDpiForMonitor_t)(HMONITOR, int, UINT*, UINT*);
+            GetDpiForMonitor_t f = (GetDpiForMonitor_t)GetProcAddress(shcore, "GetDpiForMonitor");
+            if (f)
+            {
+              HMONITOR hm = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
+              UINT dpiX = 0, dpiY = 0;
+              if (SUCCEEDED(f(hm, 0 /*MDT_EFFECTIVE_DPI*/, &dpiX, &dpiY)))
+                dpi = dpiX;
+            }
+            FreeLibrary(shcore);
+          }
+          if (dpi == 0)
+          {
+            HDC dc = GetDC(m_hwnd);
+            dpi = GetDeviceCaps(dc, LOGPIXELSX);
+            ReleaseDC(m_hwnd, dc);
+          }
+
+          // setOverlayOffset expects screen coords of window top-left
+          SpikeDetector::setOverlayOffset(wr.left, wr.top);
+        }
+      }
 
       // Create a memory DC and 32-bit ARGB DIB
       HDC screenDC = GetDC(nullptr);
@@ -69,7 +114,12 @@ namespace overlayx
       m_renderTarget->BindDC(memDC, &rc);
 
       m_renderTarget->BeginDraw();
-      m_renderTarget->Clear(D2D1::ColorF(0, 0, 0, 0)); // fully transparent
+      D2D1_COLOR_F clearColor;
+      clearColor.r = 0.0f;
+      clearColor.g = 0.0f;
+      clearColor.b = 0.0f;
+      clearColor.a = 0.0f;
+      m_renderTarget->Clear(clearColor); // fully transparent
 
       if (config.visible)
       {
@@ -80,24 +130,22 @@ namespace overlayx
 
           // Create brush with layer color
           ID2D1SolidColorBrush *brush = nullptr;
-          m_renderTarget->CreateSolidColorBrush(
-              D2D1::ColorF(
-                  layer.color.r / 255.0f,
-                  layer.color.g / 255.0f,
-                  layer.color.b / 255.0f,
-                  layer.color.a / 255.0f),
-              &brush);
+          D2D1_COLOR_F layerColor;
+          layerColor.r = layer.color.r / 255.0f;
+          layerColor.g = layer.color.g / 255.0f;
+          layerColor.b = layer.color.b / 255.0f;
+          layerColor.a = layer.color.a / 255.0f;
+          m_renderTarget->CreateSolidColorBrush(layerColor, &brush);
 
           ID2D1SolidColorBrush *outlineBrush = nullptr;
           if (layer.outlineEnabled)
           {
-            m_renderTarget->CreateSolidColorBrush(
-                D2D1::ColorF(
-                    layer.outlineColor.r / 255.0f,
-                    layer.outlineColor.g / 255.0f,
-                    layer.outlineColor.b / 255.0f,
-                    layer.outlineColor.a / 255.0f),
-                &outlineBrush);
+            D2D1_COLOR_F outlineColor;
+            outlineColor.r = layer.outlineColor.r / 255.0f;
+            outlineColor.g = layer.outlineColor.g / 255.0f;
+            outlineColor.b = layer.outlineColor.b / 255.0f;
+            outlineColor.a = layer.outlineColor.a / 255.0f;
+            m_renderTarget->CreateSolidColorBrush(outlineColor, &outlineBrush);
           }
 
           if (brush)
@@ -107,12 +155,16 @@ namespace overlayx
 
             if (layer.rotation != 0.0f)
             {
-              m_renderTarget->SetTransform(
-                  D2D1::Matrix3x2F::Rotation(layer.rotation, D2D1::Point2F(cx, cy)));
+              D2D1_POINT_2F rotationCenter;
+              rotationCenter.x = cx;
+              rotationCenter.y = cy;
+              D2D1_MATRIX_3X2_F rotationMatrix = D2D1::Matrix3x2F::Rotation(layer.rotation, rotationCenter);
+              m_renderTarget->SetTransform(rotationMatrix);
             }
             else
             {
-              m_renderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
+              D2D1_MATRIX_3X2_F identityMatrix = D2D1::Matrix3x2F::Identity();
+              m_renderTarget->SetTransform(identityMatrix);
             }
 
             switch (layer.shape)
@@ -132,7 +184,8 @@ namespace overlayx
             }
 
             // Reset transform
-            m_renderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
+            D2D1_MATRIX_3X2_F identityMatrix = D2D1::Matrix3x2F::Identity();
+            m_renderTarget->SetTransform(identityMatrix);
 
             brush->Release();
             if (outlineBrush)
@@ -146,6 +199,10 @@ namespace overlayx
       {
         drawCountdown(screenW, screenH, config.countdown, config.countdownRuntime);
       }
+
+#ifdef SPIKE_DETECTION_ENABLED
+      drawDetectionRegion(screenW, screenH);
+#endif
 
       m_renderTarget->EndDraw();
 
@@ -209,12 +266,26 @@ namespace overlayx
       float halfH = h / 2.0f;
       float halfT = thickness / 2.0f;
 
-      D2D1_RECT_F bars[4] = {
-          D2D1::RectF(cx - halfT, cy - halfH, cx + halfT, cy - gap), // Top
-          D2D1::RectF(cx - halfT, cy + gap, cx + halfT, cy + halfH), // Bottom
-          D2D1::RectF(cx - halfW, cy - halfT, cx - gap, cy + halfT), // Left
-          D2D1::RectF(cx + gap, cy - halfT, cx + halfW, cy + halfT)  // Right
-      };
+      D2D1_RECT_F bars[4];
+      bars[0].left = cx - halfT;
+      bars[0].top = cy - halfH;
+      bars[0].right = cx + halfT;
+      bars[0].bottom = cy - gap;
+
+      bars[1].left = cx - halfT;
+      bars[1].top = cy + gap;
+      bars[1].right = cx + halfT;
+      bars[1].bottom = cy + halfH;
+
+      bars[2].left = cx - halfW;
+      bars[2].top = cy - halfT;
+      bars[2].right = cx - gap;
+      bars[2].bottom = cy + halfT;
+
+      bars[3].left = cx + gap;
+      bars[3].top = cy - halfT;
+      bars[3].right = cx + halfW;
+      bars[3].bottom = cy + halfT;
 
       if (outlineBrush && outlineThickness > 0)
       {
@@ -240,11 +311,20 @@ namespace overlayx
     {
       float rx = w / 2.0f;
       float ry = h / 2.0f;
-      D2D1_ELLIPSE ellipse = D2D1::Ellipse(D2D1::Point2F(cx, cy), rx, ry);
+
+      D2D1_ELLIPSE ellipse;
+      ellipse.point.x = cx;
+      ellipse.point.y = cy;
+      ellipse.radiusX = rx;
+      ellipse.radiusY = ry;
 
       if (outlineBrush && outlineThickness > 0)
       {
-        D2D1_ELLIPSE outlineEllipse = D2D1::Ellipse(D2D1::Point2F(cx, cy), rx + outlineThickness, ry + outlineThickness);
+        D2D1_ELLIPSE outlineEllipse;
+        outlineEllipse.point.x = cx;
+        outlineEllipse.point.y = cy;
+        outlineEllipse.radiusX = rx + outlineThickness;
+        outlineEllipse.radiusY = ry + outlineThickness;
         m_renderTarget->FillEllipse(outlineEllipse, outlineBrush);
       }
 
@@ -256,7 +336,12 @@ namespace overlayx
     {
       float rx = w / 2.0f;
       float ry = h / 2.0f;
-      D2D1_ELLIPSE ellipse = D2D1::Ellipse(D2D1::Point2F(cx, cy), rx, ry);
+
+      D2D1_ELLIPSE ellipse;
+      ellipse.point.x = cx;
+      ellipse.point.y = cy;
+      ellipse.radiusX = rx;
+      ellipse.radiusY = ry;
 
       if (outlineBrush && outlineThickness > 0)
       {
@@ -302,7 +387,7 @@ namespace overlayx
           m_textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         }
 
-        FLOAT msFontSize = std::max<FLOAT>(8.0f, static_cast<FLOAT>(config.fontSize) * 0.42f);
+        FLOAT msFontSize = std::max<FLOAT>(8.0f, static_cast<FLOAT>(config.fontSize) * 0.5f);
         hr = m_dwriteFactory->CreateTextFormat(
             L"Segoe UI",
             nullptr,
@@ -326,7 +411,7 @@ namespace overlayx
       if (runtime.enabled && runtime.startTimestampMs > 0)
       {
         using namespace std::chrono;
-        long long nowMs = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+        long long nowMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
         long long elapsed = nowMs - runtime.startTimestampMs;
         remainingMs = static_cast<long long>(config.duration) * 1000LL - elapsed;
         if (remainingMs < 0)
@@ -338,42 +423,36 @@ namespace overlayx
       }
       int remainingSeconds = static_cast<int>((remainingMs + 999) / 1000); // Round up
       int remainingCentiseconds = static_cast<int>((remainingMs % 1000) / 10);
+      int remainingMinutes = remainingSeconds / 60;
+      int remainingWholeSeconds = remainingSeconds % 60;
 
       wchar_t secondsBuffer[32];
-      wchar_t millisecondsBuffer[32];
-      swprintf_s(secondsBuffer, L"%02d:%02d", remainingSeconds / 60, remainingSeconds % 60);
-      swprintf_s(millisecondsBuffer, L".%02d", remainingCentiseconds);
+      wchar_t msBuffer[8];
+      swprintf_s(secondsBuffer, L"%02d:%02d", remainingMinutes, remainingWholeSeconds);
+      swprintf_s(msBuffer, L".%02d", remainingCentiseconds);
 
       ID2D1SolidColorBrush *brush = nullptr;
-      m_renderTarget->CreateSolidColorBrush(
-          D2D1::ColorF(
-              config.color.r / 255.0f,
-              config.color.g / 255.0f,
-              config.color.b / 255.0f,
-              config.color.a / 255.0f),
-          &brush);
+      D2D1_COLOR_F color;
+      color.r = config.color.r / 255.0f;
+      color.g = config.color.g / 255.0f;
+      color.b = config.color.b / 255.0f;
+      color.a = config.color.a / 255.0f;
+      m_renderTarget->CreateSolidColorBrush(color, &brush);
 
-      if (brush && m_textFormat && m_msTextFormat)
+      if (brush && m_textFormat)
       {
         float x = config.posX * screenW;
         float y = config.posY * screenH;
-        float mainWidth = static_cast<float>(std::max(120, config.fontSize * 4));
-        float mainHeight = static_cast<float>(std::max(64, config.fontSize * 2));
-        float msWidth = static_cast<float>(std::max(60, config.fontSize * 2));
-        float msHeight = static_cast<float>(std::max(28, config.fontSize));
+        float textWidth = static_cast<float>(std::max<int>(160, config.fontSize * 6));
+        float textHeight = static_cast<float>(std::max<int>(72, config.fontSize * 2));
 
-        D2D1_RECT_F secondsRect = D2D1::RectF(
-            x - (mainWidth * 0.5f),
-            y - (mainHeight * 0.5f),
-            x + (mainWidth * 0.15f),
-            y + (mainHeight * 0.5f));
+        D2D1_RECT_F secondsRect;
+        secondsRect.left = x - (textWidth * 0.5f);
+        secondsRect.top = y - (textHeight * 0.5f);
+        secondsRect.right = x + (textWidth * 0.5f);
+        secondsRect.bottom = y + (textHeight * 0.5f);
 
-        D2D1_RECT_F msRect = D2D1::RectF(
-            x + (mainWidth * 0.12f),
-            y - (msHeight * 0.25f),
-            x + (mainWidth * 0.12f) + msWidth,
-            y + (msHeight * 0.75f));
-
+        // Draw main seconds
         m_renderTarget->DrawText(
             secondsBuffer,
             wcslen(secondsBuffer),
@@ -381,16 +460,60 @@ namespace overlayx
             secondsRect,
             brush);
 
-        m_renderTarget->DrawText(
-            millisecondsBuffer,
-            wcslen(millisecondsBuffer),
-            m_msTextFormat,
-            msRect,
-            brush);
+        // Draw milliseconds smaller next to seconds
+        if (m_msTextFormat)
+        {
+          D2D1_RECT_F msRect;
+          msRect.left = x + (textWidth * 0.3f);
+          msRect.top = y + (textHeight * 0.2f);
+          msRect.right = x + (textWidth * 0.5f);
+          msRect.bottom = y + (textHeight * 0.5f);
+
+          m_renderTarget->DrawText(
+              msBuffer,
+              wcslen(msBuffer),
+              m_msTextFormat,
+              msRect,
+              brush);
+        }
 
         brush->Release();
       }
     }
+
+#ifdef SPIKE_DETECTION_ENABLED
+    void drawDetectionRegion(int screenW, int screenH)
+    {
+      if (!m_renderTarget)
+        return;
+
+      DetectionRegion region = SpikeDetector::computeDetectionRegion(screenW, screenH);
+      if (region.w <= 0 || region.h <= 0)
+        return;
+
+      ID2D1SolidColorBrush *boxBrush = nullptr;
+      D2D1_COLOR_F color;
+      color.r = 0.95f;
+      color.g = 0.85f;
+      color.b = 0.15f;
+      color.a = 0.85f;
+      if (FAILED(m_renderTarget->CreateSolidColorBrush(color, &boxBrush)) || !boxBrush)
+        return;
+
+      D2D1_RECT_F rect;
+      int offX = 0, offY = 0;
+      SpikeDetector::getOverlayOffset(offX, offY);
+      // Convert screen coords to overlay-local coords for drawing
+      rect.left = static_cast<float>(region.x - offX);
+      rect.top = static_cast<float>(region.y - offY);
+      rect.right = static_cast<float>(region.x + region.w - offX);
+      rect.bottom = static_cast<float>(region.y + region.h - offY);
+
+
+      m_renderTarget->DrawRectangle(rect, boxBrush, 2.0f);
+      boxBrush->Release();
+    }
+#endif
 
     HWND m_hwnd{nullptr};
     ID2D1Factory *m_factory{nullptr};

@@ -160,7 +160,7 @@ namespace overlayx
   struct CountdownConfig
   {
     bool enabled = false;
-    int duration = 60; // Initial duration in seconds
+    int duration = 45; // Initial duration in seconds
     float posX = 0.5f; // Position on screen
     float posY = 0.5f;
     int fontSize = 48; // Font size in pixels

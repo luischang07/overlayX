@@ -7,20 +7,20 @@
             "r": 116
         },
         "duration": 45,
-        "enabled": false,
-        "fontSize": 35,
+        "enabled": true,
+        "fontSize": 48,
         "hotkeyResetMods": 5,
         "hotkeyResetVk": 114,
         "hotkeyStartMods": 5,
         "hotkeyStartVk": 115,
         "hotkeyStopMods": 0,
         "hotkeyStopVk": 0,
-        "posX": 0.1420000046491623,
+        "posX": 0.2648000121116638,
         "posY": 0.02199999988079071
     },
     "countdownRuntime": {
         "enabled": false,
-        "pausedRemainingMs": -1,
+        "pausedRemainingMs": 45000,
         "startTimestampMs": 0
     },
     "editMode": false,
@@ -36,7 +36,7 @@
             },
             "enabled": true,
             "gap": 2.0,
-            "height": 179.0,
+            "height": 223.0,
             "hotkeyModifiers": 0,
             "hotkeyVk": 0,
             "name": "Layer 0",
@@ -50,11 +50,11 @@
             "outlineThickness": 1.0,
             "posX": 0.12960000336170197,
             "posY": 0.25200000405311584,
-            "presetId": "4505727312576dd6_472624578_1",
+            "presetId": "4505727312576dd6_481449625_1",
             "rotation": 0.0,
             "shape": "cross",
             "thickness": 2.0,
-            "width": 179.0
+            "width": 223.0
         }
     ],
     "posX": 0.5,
@@ -364,5 +364,5 @@
         }
     ],
     "shouldExit": false,
-    "visible": false
+    "visible": true
 }

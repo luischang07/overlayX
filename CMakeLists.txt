@@ -18,6 +18,23 @@ if(NOT EXISTS "${JSON_INCLUDE_DIR}/nlohmann/json.hpp")
     )
 endif()
 
+# ─── OpenCV (for spike detection) ──────────────────────────
+# Spike detection is OPTIONAL - can be disabled if OpenCV isn't available
+option(ENABLE_SPIKE_DETECTION "Enable spike icon detection" OFF)
+
+if(ENABLE_SPIKE_DETECTION)
+    find_package(OpenCV QUIET COMPONENTS core imgproc)
+    if(OpenCV_FOUND)
+        add_definitions(-DSPIKE_DETECTION_ENABLED)
+        message(STATUS "Spike detection ENABLED (OpenCV found)")
+    else()
+        message(WARNING "OpenCV not found! Spike detection disabled. To enable, install OpenCV and set OpenCV_DIR.")
+        set(ENABLE_SPIKE_DETECTION OFF)
+    endif()
+else()
+    message(STATUS "Spike detection DISABLED (use -DENABLE_SPIKE_DETECTION=ON to enable)")
+endif()
+
 # ─── Engine Target (MSVC / Direct2D) ────────────────────────
 add_executable(OverlayEngine
     engine/src/main.cpp
@@ -35,3 +52,19 @@ target_link_libraries(OverlayEngine PRIVATE
     dwrite.lib
     windowscodecs.lib
 )
+
+if(ENABLE_SPIKE_DETECTION)
+    # Link OpenCV from vcpkg
+    set(OPENCV_LIB_DIR "C:/vcpkg/packages/opencv4_x64-windows/lib")
+    set(OPENCV_INCLUDE_DIR "C:/vcpkg/packages/opencv4_x64-windows/include")
+    
+    target_include_directories(OverlayEngine PRIVATE ${OPENCV_INCLUDE_DIR})
+    target_link_directories(OverlayEngine PRIVATE ${OPENCV_LIB_DIR})
+    target_link_libraries(OverlayEngine PRIVATE 
+        opencv_core
+        opencv_imgproc
+        opencv_imgcodecs
+        d3d11.lib
+        dxgi.lib
+    )
+endif()
