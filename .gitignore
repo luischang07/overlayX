@@ -1,0 +1,10 @@
+build/
+out/
+bin/
+.vs/
+*.user
+*.suo
+*.db
+*.log
+engine_debug.txt
+overlay_config.json
