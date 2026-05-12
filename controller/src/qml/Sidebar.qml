@@ -58,7 +58,8 @@ Rectangle {
                 { label: "Settings",           tab: 1 },
                 { label: "Position & Presets", tab: 2 },
                 { label: "Hotkeys",            tab: 3 },
-                { label: "Crosshair Designer", tab: 4 }
+                { label: "Countdown Timer",    tab: 4 },
+                { label: "Crosshair Designer", tab: 5 }
             ]
 
             delegate: Item {

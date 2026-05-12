@@ -1,4 +1,28 @@
 {
+    "countdown": {
+        "color": {
+            "a": 255,
+            "b": 81,
+            "g": 223,
+            "r": 116
+        },
+        "duration": 45,
+        "enabled": false,
+        "fontSize": 35,
+        "hotkeyResetMods": 5,
+        "hotkeyResetVk": 114,
+        "hotkeyStartMods": 5,
+        "hotkeyStartVk": 115,
+        "hotkeyStopMods": 0,
+        "hotkeyStopVk": 0,
+        "posX": 0.1420000046491623,
+        "posY": 0.02199999988079071
+    },
+    "countdownRuntime": {
+        "enabled": false,
+        "pausedRemainingMs": -1,
+        "startTimestampMs": 0
+    },
     "editMode": false,
     "hotkey": 112,
     "hotkeyModifiers": 1,
@@ -26,7 +50,7 @@
             "outlineThickness": 1.0,
             "posX": 0.12960000336170197,
             "posY": 0.25200000405311584,
-            "presetId": "4505727312576dd6_467482937_9",
+            "presetId": "4505727312576dd6_472624578_1",
             "rotation": 0.0,
             "shape": "cross",
             "thickness": 2.0,
@@ -340,5 +364,5 @@
         }
     ],
     "shouldExit": false,
-    "visible": true
+    "visible": false
 }

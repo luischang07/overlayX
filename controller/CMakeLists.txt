@@ -38,6 +38,7 @@ qt_add_qml_module(OverlayController
         src/qml/PresetsPage.qml
         src/qml/HotkeysPage.qml
         src/qml/SettingsPage.qml
+        src/qml/CountdownPage.qml
 )
 
 target_include_directories(OverlayController PRIVATE

@@ -61,6 +61,7 @@ ApplicationWindow {
                 SettingsPage {}
                 PresetsPage {}
                 HotkeysPage {}
+                CountdownPage {}
                 DesignerPage {}
             }
         }
