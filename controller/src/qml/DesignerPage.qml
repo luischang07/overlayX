@@ -173,6 +173,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.leftMargin: 24
+            Layout.maximumWidth: 600 // Reduced from 800 to fit user request
             clip: true
 
             ColumnLayout {
@@ -199,7 +200,6 @@ Item {
                         TextField {
                             id: nameField
                             text: designerRoot.selectedLayer ? designerRoot.selectedLayer.name : ""
-                            Layout.preferredWidth: 400
                             Layout.fillWidth: true
                             implicitHeight: 34
                             padding: 10
@@ -223,31 +223,28 @@ Item {
                         id: shapeCombo
                         model: ["Cross", "Dot", "Circle"]
                         currentIndex: designerRoot.selectedLayer ? designerRoot.selectedLayer.shape : 0
-                        Layout.preferredWidth: 200
+                        Layout.preferredWidth: 160
                         implicitHeight: 34
                         onActivated: backend.setLayerShape(backend.selectedLayerIndex, currentIndex)
                     }
-
-                    Item { Layout.preferredHeight: 4 }
-                    Text { text: "DIMENSIONS"; font.pixelSize: 12; font.letterSpacing: 1; color: "#6b6b70" }
 
                     GridLayout {
                         columns: 4
                         columnSpacing: 12
                         rowSpacing: 8
 
-                        Text { text: "Width"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Width"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 1; to: 300; stepSize: 1
                             value: designerRoot.selectedLayer ? designerRoot.selectedLayer.width : 20
                             onMoved: backend.setLayerWidth(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 250
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: Math.round(designerRoot.selectedLayer ? designerRoot.selectedLayer.width : 0).toString()
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 120
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -259,26 +256,26 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 160; Layout.preferredHeight: 34
-                            implicitWidth: 160; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerWidth(backend.selectedLayerIndex, 20)
                             contentItem: Text { text: "Reset"; color: "#a0a0a6"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
 
-                        Text { text: "Height"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Height"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 1; to: 300; stepSize: 1
                             value: designerRoot.selectedLayer ? designerRoot.selectedLayer.height : 20
                             onMoved: backend.setLayerHeight(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 250
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: Math.round(designerRoot.selectedLayer ? designerRoot.selectedLayer.height : 0).toString()
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -290,26 +287,26 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 160; Layout.preferredHeight: 34
-                            implicitWidth: 160; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerHeight(backend.selectedLayerIndex, 20)
                             contentItem: Text { text: "Reset"; color: "#a0a0a6"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
 
-                        Text { text: "Thickness"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Thickness"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 0.1; to: 40; stepSize: 0.1
                             value: designerRoot.selectedLayer ? designerRoot.selectedLayer.thickness : 2
                             onMoved: backend.setLayerThickness(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 250
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: (designerRoot.selectedLayer ? designerRoot.selectedLayer.thickness : 0).toFixed(1)
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -321,8 +318,8 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 160; Layout.preferredHeight: 34
-                            implicitWidth: 160; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerThickness(backend.selectedLayerIndex, 2)
@@ -333,21 +330,21 @@ Item {
                         Text {
                             text: "Gap"
                             font.pixelSize: 14; color: "#a0a0a6"
-                            Layout.preferredWidth: 80
+                            Layout.preferredWidth: 60
                             visible: shapeCombo.currentIndex === 0
                         }
                         Slider {
                             from: 0; to: 200; stepSize: 1
                             value: designerRoot.selectedLayer ? designerRoot.selectedLayer.gap : 0
                             onMoved: backend.setLayerGap(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 250
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                             visible: shapeCombo.currentIndex === 0
                         }
                         TextField {
                             text: Math.round(designerRoot.selectedLayer ? designerRoot.selectedLayer.gap : 0).toString()
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -360,8 +357,8 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 160; Layout.preferredHeight: 34
-                            implicitWidth: 160; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerGap(backend.selectedLayerIndex, 0)
@@ -369,18 +366,18 @@ Item {
                             contentItem: Text { text: "Reset"; color: "#a0a0a6"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                         
-                        Text { text: "Rotation"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Rotation"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 0; to: 360; stepSize: 1
                             value: designerRoot.selectedLayer && designerRoot.selectedLayer.rotation !== undefined ? designerRoot.selectedLayer.rotation : 0
                             onMoved: backend.setLayerRotation(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 250
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: Math.round(designerRoot.selectedLayer && designerRoot.selectedLayer.rotation !== undefined ? designerRoot.selectedLayer.rotation : 0).toString()
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 120
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -392,14 +389,15 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 180; Layout.preferredHeight: 34
-                            implicitWidth: 180; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerRotation(backend.selectedLayerIndex, 0)
                             contentItem: Text { text: "Reset"; color: "#a0a0a6"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                     }
+
 
                     Item { Layout.preferredHeight: 4 }
                     Text { text: "POSITION %"; font.pixelSize: 12; font.letterSpacing: 1; color: "#6b6b70" }
@@ -409,18 +407,18 @@ Item {
                         columnSpacing: 12
                         rowSpacing: 8
 
-                        Text { text: "Horizontal %"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Horizontal %"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 0; to: 1; stepSize: 0.0001
                             value: designerRoot.selectedLayer ? designerRoot.selectedLayer.posX : 0.5
                             onMoved: backend.setLayerPosX(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 300
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: (designerRoot.selectedLayer ? designerRoot.selectedLayer.posX : 0.5).toFixed(4)
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 120
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -432,26 +430,26 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 180; Layout.preferredHeight: 34
-                            implicitWidth: 180; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerPosX(backend.selectedLayerIndex, 0.5)
                             contentItem: Text { text: "Reset"; color: "#a0a0a6"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
 
-                        Text { text: "Vertical %"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Vertical %"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 0; to: 1; stepSize: 0.0001
                             value: designerRoot.selectedLayer ? designerRoot.selectedLayer.posY : 0.5
                             onMoved: backend.setLayerPosY(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 300
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: (designerRoot.selectedLayer ? designerRoot.selectedLayer.posY : 0.5).toFixed(4)
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -463,8 +461,8 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 160; Layout.preferredHeight: 34
-                            implicitWidth: 160; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerPosY(backend.selectedLayerIndex, 0.5)
@@ -538,18 +536,18 @@ Item {
                     RowLayout {
                         spacing: 12
                         visible: designerRoot.selectedLayer ? designerRoot.selectedLayer.outlineEnabled : false
-                        Text { text: "Thickness"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 80 }
+                        Text { text: "Thickness"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 60 }
                         Slider {
                             from: 0.1; to: 10; stepSize: 0.1
                             value: designerRoot.selectedLayer && designerRoot.selectedLayer.outlineThickness !== undefined ? designerRoot.selectedLayer.outlineThickness : 1.0
                             onMoved: backend.setLayerOutlineThickness(backend.selectedLayerIndex, value)
-                            Layout.preferredWidth: 200
+                            Layout.preferredWidth: 180
                             Material.accent: "#618FF0"
                         }
                         TextField { 
                             text: (designerRoot.selectedLayer && designerRoot.selectedLayer.outlineThickness !== undefined ? designerRoot.selectedLayer.outlineThickness : 1.0).toFixed(1)
                             font.pixelSize: 12; color: "#f0f0f2"
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 70
                             implicitHeight: 34
                             padding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -561,14 +559,15 @@ Item {
                         }
                         Button {
                             text: "Reset"
-                            Layout.preferredWidth: 160; Layout.preferredHeight: 34
-                            implicitWidth: 160; implicitHeight: 34
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                            implicitWidth: 80; implicitHeight: 34
                             padding: 0
                             background: Rectangle { color: parent.hovered ? "#3A3A3E" : "#2a2a2e"; radius: 6 }
                             onClicked: backend.setLayerOutlineThickness(backend.selectedLayerIndex, 1.0)
                             contentItem: Text { text: "Reset"; color: "#a0a0a6"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                     }
+
                 }
 
                 // No layer selected

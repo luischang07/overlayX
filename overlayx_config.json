@@ -1,6 +1,7 @@
 {
     "editMode": false,
-    "hotkey": 116,
+    "hotkey": 112,
+    "hotkeyModifiers": 1,
     "layers": [
         {
             "color": {
@@ -12,9 +13,9 @@
             "enabled": true,
             "gap": 2.0,
             "height": 179.0,
+            "hotkeyModifiers": 0,
+            "hotkeyVk": 0,
             "name": "Layer 0",
-            "offsetX": 0.0,
-            "offsetY": 0.0,
             "outlineColor": {
                 "a": 255,
                 "b": 0,
@@ -25,7 +26,7 @@
             "outlineThickness": 1.0,
             "posX": 0.12960000336170197,
             "posY": 0.25200000405311584,
-            "presetId": "ee6949bbfac0122f_461832921_39",
+            "presetId": "4505727312576dd6_467482937_9",
             "rotation": 0.0,
             "shape": "cross",
             "thickness": 2.0,
@@ -48,9 +49,9 @@
                     "enabled": true,
                     "gap": 4.0,
                     "height": 16.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Default",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -77,9 +78,9 @@
                     "enabled": true,
                     "gap": 4.0,
                     "height": 4.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Layer 1",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -106,9 +107,9 @@
                     "enabled": true,
                     "gap": 11.0,
                     "height": 20.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Layer 2",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -143,9 +144,9 @@
                     "enabled": true,
                     "gap": 4.0,
                     "height": 16.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Default",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -172,9 +173,9 @@
                     "enabled": true,
                     "gap": 4.0,
                     "height": 4.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Layer 1",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -201,9 +202,9 @@
                     "enabled": true,
                     "gap": 11.0,
                     "height": 20.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Layer 2",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -238,9 +239,9 @@
                     "enabled": true,
                     "gap": 4.0,
                     "height": 20.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Layer 0",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -275,9 +276,9 @@
                     "enabled": true,
                     "gap": 2.0,
                     "height": 179.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
                     "name": "Layer 0",
-                    "offsetX": 0.0,
-                    "offsetY": 0.0,
                     "outlineColor": {
                         "a": 255,
                         "b": 0,
@@ -299,6 +300,43 @@
             "posX": 0.12960000336170197,
             "posY": 0.25200000405311584,
             "uid": "ee6949bbfac0122f"
+        },
+        {
+            "layers": [
+                {
+                    "color": {
+                        "a": 255,
+                        "b": 30,
+                        "g": 178,
+                        "r": 234
+                    },
+                    "enabled": true,
+                    "gap": 2.0,
+                    "height": 179.0,
+                    "hotkeyModifiers": 0,
+                    "hotkeyVk": 0,
+                    "name": "Layer 0",
+                    "outlineColor": {
+                        "a": 255,
+                        "b": 0,
+                        "g": 0,
+                        "r": 0
+                    },
+                    "outlineEnabled": false,
+                    "outlineThickness": 1.0,
+                    "posX": 0.12960000336170197,
+                    "posY": 0.25200000405311584,
+                    "presetId": "",
+                    "rotation": 0.0,
+                    "shape": "cross",
+                    "thickness": 2.0,
+                    "width": 179.0
+                }
+            ],
+            "name": "mapp",
+            "posX": 0.12960000336170197,
+            "posY": 0.25200000405311584,
+            "uid": "4505727312576dd6"
         }
     ],
     "shouldExit": false,

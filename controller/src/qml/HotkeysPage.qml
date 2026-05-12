@@ -3,49 +3,179 @@ import QtQuick.Controls.Material
 import QtQuick.Layouts
 
 ColumnLayout {
-    spacing: 16
+    id: hotkeysRoot
+    spacing: 24
+    Layout.margins: 32
 
     Text {
         text: "Hotkeys"
-        font.pixelSize: 24
-        font.bold: true
+        font.pixelSize: 28
+        font.weight: Font.Bold
         color: "#f0f0f2"
     }
 
-    Text { text: "TOGGLE HOTKEY"; font.pixelSize: 12; font.letterSpacing: 1; color: "#6b6b70" }
+    // ─── Global Toggle ──────────────────────────────────────
+    ColumnLayout {
+        spacing: 12
+        Layout.fillWidth: true
 
-    Text {
-        text: "Select a function key to toggle overlay visibility."
-        font.pixelSize: 13
-        color: "#6b6b70"
+        Text { 
+            text: "GLOBAL OVERLAY TOGGLE"
+            font.pixelSize: 12
+            font.letterSpacing: 1.2
+            font.weight: Font.DemiBold
+            color: "#6b6b70" 
+        }
+
+        RowLayout {
+            spacing: 16
+            
+            // Keybind Display
+            Rectangle {
+                Layout.preferredWidth: 180
+                Layout.preferredHeight: 36
+                color: backend.listeningInstanceId === "global" ? "#3d2b1f" : "#0d0d0f"
+                radius: 6
+                border.color: backend.listeningInstanceId === "global" ? "#ffb74d" : "#2a2a2e"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: backend.listeningInstanceId === "global" ? "Listening..." : backend.globalHotkeyString
+                    color: backend.listeningInstanceId === "global" ? "#ffb74d" : "#f0f0f2"
+                    font.pixelSize: 13
+                    font.family: "Consolas"
+                }
+            }
+
+            Button {
+                text: "Assign"
+                Layout.preferredWidth: 90
+                Layout.preferredHeight: 36
+                Material.background: "#2a2a2e"
+                enabled: backend.listeningInstanceId === ""
+                onClicked: backend.startListeningForInstanceHotkey("global")
+            }
+
+            Button {
+                text: "Clear"
+                Layout.preferredWidth: 90
+                Layout.preferredHeight: 36
+                Material.background: "#2a2a2e"
+                enabled: backend.listeningInstanceId === "" && (backend.configUpdateTick, backend.globalHotkeyString !== "None")
+                onClicked: backend.clearGlobalHotkey()
+            }
+
+            Text {
+                text: "Hide or show the entire overlay globally."
+                font.pixelSize: 13
+                color: "#6b6b70"
+            }
+        }
     }
 
-    ListView {
-        id: hotkeyList
+    Rectangle {
         Layout.fillWidth: true
-        Layout.preferredWidth: 240
-        Layout.preferredHeight: 320
-        clip: true
-        model: ["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"]
+        Layout.preferredHeight: 1
+        color: "#2a2a2e"
+    }
 
-        delegate: ItemDelegate {
-            width: 240
-            height: 40
-            highlighted: (backend.hotkey - 0x70) === index
+    // ─── Preset Instance Hotkeys ───────────────────────────
+    ColumnLayout {
+        spacing: 16
+        Layout.fillWidth: true
+        Layout.fillHeight: true
 
-            contentItem: Text {
-                text: modelData
+        Text { 
+            text: "ACTIVE PRESET VISIBILITY"
+            font.pixelSize: 12
+            font.letterSpacing: 1.2
+            font.weight: Font.DemiBold
+            color: "#6b6b70" 
+        }
+
+        ListView {
+            id: presetHotkeyListView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            model: (backend.configUpdateTick, backend.activePresetInstances)
+            spacing: 8
+
+            delegate: Rectangle {
+                width: presetHotkeyListView.width
+                height: 64
+                color: "#1a1a1c"
+                radius: 8
+                border.color: "#2a2a2e"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    spacing: 16
+
+                    ColumnLayout {
+                        spacing: 2
+                        Layout.fillWidth: true
+                        Text {
+                            text: modelData.name
+                            font.pixelSize: 15
+                            font.weight: Font.Medium
+                            color: "#f0f0f2"
+                        }
+                        Text {
+                            text: "Instance ID: " + modelData.presetId
+                            font.pixelSize: 11
+                            color: "#6b6b70"
+                            elide: Text.ElideRight
+                            Layout.maximumWidth: 200
+                        }
+                    }
+
+                    // Keybind Display
+                    Rectangle {
+                        Layout.preferredWidth: 180
+                        Layout.preferredHeight: 36
+                        color: backend.listeningInstanceId === modelData.presetId ? "#3d2b1f" : "#0d0d0f"
+                        radius: 6
+                        border.color: backend.listeningInstanceId === modelData.presetId ? "#ffb74d" : "#2a2a2e"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: backend.listeningInstanceId === modelData.presetId ? "Listening..." : modelData.hotkey
+                            color: backend.listeningInstanceId === modelData.presetId ? "#ffb74d" : "#f0f0f2"
+                            font.pixelSize: 13
+                            font.family: "Consolas"
+                        }
+                    }
+
+                    Button {
+                        text: "Assign"
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: 36
+                        Material.background: "#2a2a2e"
+                        enabled: backend.listeningInstanceId === ""
+                        onClicked: backend.startListeningForInstanceHotkey(modelData.presetId)
+                    }
+
+                    Button {
+                        text: "Clear"
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: 36
+                        enabled: backend.listeningInstanceId === "" && (backend.configUpdateTick, modelData.hotkey !== "None")
+                        Material.background: "#2a2a2e"
+                        onClicked: backend.clearInstanceHotkey(modelData.presetId)
+                    }
+                }
+            }
+
+            footer: Text {
+                visible: presetHotkeyListView.count === 0
+                text: "No active presets found. Add some from the Presets tab."
+                color: "#6b6b70"
                 font.pixelSize: 14
-                color: highlighted ? "#618FF0" : "#f0f0f2"
-                verticalAlignment: Text.AlignVCenter
+                topPadding: 20
             }
-
-            background: Rectangle {
-                color: highlighted ? "#618FF01A" : (hovered ? "#ffffff0A" : "transparent")
-                radius: 6
-            }
-
-            onClicked: backend.hotkey = 0x70 + index
         }
     }
 }

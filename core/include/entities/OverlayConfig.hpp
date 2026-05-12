@@ -71,6 +71,8 @@ struct Layer {
     Color outlineColor   = {0, 0, 0, 255};
     float outlineThickness = 1.0f;
     std::string presetId = ""; // Group layers together for movement
+    int   hotkeyVk       = 0;
+    int   hotkeyModifiers = 0;
 };
 
 inline void to_json(nlohmann::json& j, const Layer& l) {
@@ -80,7 +82,8 @@ inline void to_json(nlohmann::json& j, const Layer& l) {
         {"gap", l.gap}, {"posX", l.posX}, {"posY", l.posY},
         {"rotation", l.rotation}, {"enabled", l.enabled},
         {"outlineEnabled", l.outlineEnabled}, {"outlineColor", l.outlineColor},
-        {"outlineThickness", l.outlineThickness}, {"presetId", l.presetId}
+        {"outlineThickness", l.outlineThickness}, {"presetId", l.presetId},
+        {"hotkeyVk", l.hotkeyVk}, {"hotkeyModifiers", l.hotkeyModifiers}
     };
 }
 
@@ -109,6 +112,8 @@ inline void from_json(const nlohmann::json& j, Layer& l) {
     if (j.contains("outlineColor")) from_json(j.at("outlineColor"), l.outlineColor);
     l.outlineThickness = j.value("outlineThickness", l.outlineThickness);
     l.presetId        = j.value("presetId",        l.presetId);
+    l.hotkeyVk        = j.value("hotkeyVk",        l.hotkeyVk);
+    l.hotkeyModifiers = j.value("hotkeyModifiers", l.hotkeyModifiers);
 }
 
 struct CrosshairPreset {
@@ -141,6 +146,7 @@ struct OverlayConfig {
     float posX       = 0.5f;       // Global offset/base X
     float posY       = 0.5f;       // Global offset/base Y
     int   hotkey     = 0x75;       // VK_F6
+    int   hotkeyModifiers = 0;
     bool  visible    = true;
     bool  editMode   = false;
 
@@ -160,7 +166,8 @@ struct OverlayConfig {
 inline void to_json(nlohmann::json& j, const OverlayConfig& c) {
     j = nlohmann::json{
         {"posX", c.posX},         {"posY", c.posY},
-        {"hotkey", c.hotkey},     {"visible", c.visible},
+        {"hotkey", c.hotkey},     {"hotkeyModifiers", c.hotkeyModifiers},
+        {"visible", c.visible},
         {"editMode", c.editMode}, {"layers", c.layers},
         {"savedPositions", c.savedPositions},
         {"savedPresets", c.savedPresets},
@@ -172,6 +179,7 @@ inline void from_json(const nlohmann::json& j, OverlayConfig& c) {
     if (j.contains("posX")) j.at("posX").get_to(c.posX);
     if (j.contains("posY")) j.at("posY").get_to(c.posY);
     j.at("hotkey").get_to(c.hotkey);
+    c.hotkeyModifiers = j.value("hotkeyModifiers", 0);
     j.at("visible").get_to(c.visible);
     j.at("editMode").get_to(c.editMode);
     

@@ -13,7 +13,8 @@
 #include <sstream>
 #include <iomanip>
 #include <memory>
-#include <windows.h> // For GetTickCount64
+#include <windows.h> // For GetTickCount64, GetAsyncKeyState
+#include <set>
 
 namespace overlayx {
 
@@ -28,8 +29,13 @@ class AppBackend : public QObject {
     Q_PROPERTY(float posX      READ posX       WRITE setPosX       NOTIFY configChanged)
     Q_PROPERTY(float posY      READ posY       WRITE setPosY       NOTIFY configChanged)
     Q_PROPERTY(int   hotkey    READ hotkey     WRITE setHotkey     NOTIFY configChanged)
+    Q_PROPERTY(int   hotkeyModifiers READ hotkeyModifiers WRITE setHotkeyModifiers NOTIFY configChanged)
+    Q_PROPERTY(QString globalHotkeyString READ globalHotkeyString NOTIFY configChanged)
     Q_PROPERTY(bool  engineConnected READ engineConnected NOTIFY engineStatusChanged)
     Q_PROPERTY(int   selectedLayerIndex READ selectedLayerIndex WRITE setSelectedLayerIndex NOTIFY selectedLayerIndexChanged)
+    Q_PROPERTY(bool  isListeningForHotkey READ isListeningForHotkey NOTIFY isListeningForHotkeyChanged)
+    Q_PROPERTY(QString listeningInstanceId READ listeningInstanceId NOTIFY isListeningForHotkeyChanged)
+    Q_PROPERTY(int configUpdateTick READ configUpdateTick NOTIFY configChanged)
 
     // ─── Collections ───────────────────────────────────────
     Q_PROPERTY(QVariantList layers         READ layers         NOTIFY configChanged)
@@ -71,6 +77,11 @@ public:
             }
         });
         m_statusTimer.start();
+
+        // Poll for global hotkeys (runs on GUI thread, non-blocking)
+        m_hotkeyTimer.setInterval(20);
+        connect(&m_hotkeyTimer, &QTimer::timeout, this, &AppBackend::pollHotkeys);
+        m_hotkeyTimer.start();
     }
 
     ~AppBackend() override {
@@ -87,6 +98,8 @@ public:
     float posX()     const { return m_config.posX; }
     float posY()     const { return m_config.posY; }
     int   hotkey()   const { return m_config.hotkey; }
+    int   hotkeyModifiers() const { return m_config.hotkeyModifiers; }
+    QString globalHotkeyString() const { return formatHotkeyString(m_config.hotkey, m_config.hotkeyModifiers); }
     bool  engineConnected() const { return m_ipc->isClientConnected(); }
     int   layerCount() const { return (int)m_config.layers.size(); }
 
@@ -95,6 +108,13 @@ public:
     void setPosX(float v)     { if (m_config.posX     != v) { m_config.posX     = v; markDirty(); } }
     void setPosY(float v)     { if (m_config.posY     != v) { m_config.posY     = v; markDirty(); } }
     void setHotkey(int v)     { if (m_config.hotkey   != v) { m_config.hotkey   = v; markDirty(); } }
+    void setHotkeyModifiers(int v) { if (m_config.hotkeyModifiers != v) { m_config.hotkeyModifiers = v; markDirty(); } }
+
+    int configUpdateTick() const { return m_configUpdateTick; }
+
+    Q_INVOKABLE void clearGlobalHotkey() {
+        setInstanceHotkey("global", 0, 0);
+    }
 
     int selectedLayerIndex() const { return m_selectedLayerIndex; }
     void setSelectedLayerIndex(int i) {
@@ -103,6 +123,9 @@ public:
             emit selectedLayerIndexChanged();
         }
     }
+
+    bool isListeningForHotkey() const { return m_isListening; }
+    QString listeningInstanceId() const { return m_isListening ? QString::fromStdString(m_listeningInstanceId) : ""; }
 
     // ─── Layer Collection ──────────────────────────────────
     QVariantList layers() const {
@@ -169,6 +192,7 @@ public:
                 m["name"] = name;
                 m["posX"] = l.posX;
                 m["posY"] = l.posY;
+                m["hotkey"] = formatHotkeyString(l.hotkeyVk, l.hotkeyModifiers);
                 list.append(m);
             }
         }
@@ -281,6 +305,79 @@ public:
     }
     Q_INVOKABLE void setLayerOutlineThickness(int i, float v) {
         if (validLayer(i)) { m_config.layers[i].outlineThickness = v; markDirty(); }
+    }
+
+    Q_INVOKABLE void setInstanceHotkey(const QString& id, int vk, int modifiers) {
+        if (id == "global") {
+            m_config.hotkey = vk;
+            m_config.hotkeyModifiers = modifiers;
+            markDirty();
+            return;
+        }
+
+        std::string sid = id.toStdString();
+        std::string uid = "";
+        size_t underscorePos = sid.find('_');
+        if (underscorePos != std::string::npos) {
+            uid = sid.substr(0, underscorePos);
+        }
+
+        // Update all layers that belong to this specific instance OR this preset type
+        for (auto& l : m_config.layers) {
+            bool matches = (l.presetId == sid);
+            if (!matches && !uid.empty() && !l.presetId.empty()) {
+                // Also match other instances of the same preset
+                if (l.presetId.find(uid + "_") == 0) matches = true;
+            }
+
+            if (matches) {
+                l.hotkeyVk = vk;
+                l.hotkeyModifiers = modifiers;
+            }
+        }
+
+        // Update the template in savedPresets so new instances inherit this hotkey
+        if (!uid.empty()) {
+            for (auto& pr : m_config.savedPresets) {
+                if (pr.uid == uid) {
+                    for (auto& pl : pr.layers) {
+                        pl.hotkeyVk = vk;
+                        pl.hotkeyModifiers = modifiers;
+                    }
+                    break;
+                }
+            }
+        }
+
+        markDirty();
+    }
+
+    Q_INVOKABLE void startListeningForInstanceHotkey(const QString& id) {
+        m_listeningInstanceId = id.toStdString();
+        m_isListening = true;
+        m_listeningTimer = 10; 
+        emit isListeningForHotkeyChanged();
+    }
+
+    Q_INVOKABLE void clearInstanceHotkey(const QString& id) {
+        setInstanceHotkey(id, 0, 0);
+    }
+
+    Q_INVOKABLE QString getInstanceHotkeyString(const QString& id) const {
+        std::string sid = id.toStdString();
+        int vk = 0;
+        int mods = 0;
+        
+        for (const auto& l : m_config.layers) {
+            if (l.presetId == sid) {
+                vk = l.hotkeyVk;
+                mods = l.hotkeyModifiers;
+                break;
+            }
+        }
+
+        if (vk == 0) return "None";
+        return formatHotkeyString(vk, mods);
     }
 
     Q_INVOKABLE QVariantMap getLayer(int i) const {
@@ -518,6 +615,7 @@ signals:
     void configChanged();
     void engineStatusChanged();
     void selectedLayerIndexChanged();
+    void isListeningForHotkeyChanged();
 
 private:
     void updateLayerPosition(int i, float val, bool isY) {
@@ -547,8 +645,47 @@ private:
 
     void markDirty() {
         m_dirty = true;
+        m_configUpdateTick++;
         m_ipc->sendConfig(m_config);
         emit configChanged();
+    }
+
+    QString formatHotkeyString(int vk, int mods) const {
+        if (vk == 0) return "None";
+        QString res;
+        if (mods & 1) res += "Ctrl + ";
+        if (mods & 2) res += "Shift + ";
+        if (mods & 4) res += "Alt + ";
+
+        switch (vk) {
+            case VK_LBUTTON: return res + "Left Mouse";
+            case VK_RBUTTON: return res + "Right Mouse";
+            case VK_MBUTTON: return res + "Middle Mouse";
+            case VK_XBUTTON1: return res + "Mouse 4";
+            case VK_XBUTTON2: return res + "Mouse 5";
+            case VK_TAB: return res + "Tab";
+            case VK_SPACE: return res + "Space";
+            case VK_RETURN: return res + "Enter";
+        }
+        
+        char name[128];
+        UINT scanCode = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+        switch (vk) {
+            case VK_LEFT: case VK_UP: case VK_RIGHT: case VK_DOWN:
+            case VK_PRIOR: case VK_NEXT: case VK_END: case VK_HOME:
+            case VK_INSERT: case VK_DELETE: case VK_DIVIDE:
+            case VK_NUMLOCK:
+                scanCode |= 0x100;
+                break;
+        }
+
+        LONG lParam = (scanCode << 16);
+        if (GetKeyNameTextA(lParam, name, sizeof(name)) > 0) {
+            res += QString::fromLocal8Bit(name);
+        } else {
+            res += QString("Key 0x%1").arg(vk, 0, 16);
+        }
+        return res;
     }
 
     bool validLayer(int i) const {
@@ -585,6 +722,8 @@ private:
             .arg(l.outlineColor.b, 2, 16, QChar('0'));
         m["outlineThickness"] = l.outlineThickness;
         m["presetId"]         = QString::fromStdString(l.presetId);
+        m["hotkeyVk"]         = l.hotkeyVk;
+        m["hotkeyModifiers"]  = l.hotkeyModifiers;
         return m;
     }
 
@@ -605,7 +744,106 @@ private:
     bool                             m_lastEngineStatus{false};
     QTimer                           m_saveTimer;
     QTimer                           m_statusTimer;
+    QTimer                           m_hotkeyTimer;
     int                              m_selectedLayerIndex{0};
+    int                              m_configUpdateTick{0};
+
+    // Hotkey tracking
+    std::set<std::pair<int, int>>    m_pressedHotkeys;
+    bool                             m_masterHotkeyState{false};
+
+    bool                             m_isListening{false};
+    std::string                      m_listeningInstanceId;
+    int                              m_listeningTimer{0};
+
+    void pollHotkeys() {
+        if (m_isListening) {
+            if (m_listeningTimer > 0) {
+                m_listeningTimer--;
+                return;
+            }
+
+            int mods = 0;
+            if (GetAsyncKeyState(VK_CONTROL) & 0x8000) mods |= 1;
+            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) mods |= 2;
+            if (GetAsyncKeyState(VK_MENU) & 0x8000) mods |= 4;
+
+            for (int vk = 1; vk < 255; ++vk) {
+                if (vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT ||
+                    vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL ||
+                    vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
+                    vk == VK_LWIN || vk == VK_RWIN) {
+                    continue;
+                }
+
+                if (GetAsyncKeyState(vk) & 0x8000) {
+                    // Store listening state before clearing it
+                    std::string targetId = m_listeningInstanceId;
+                    m_isListening = false;
+                    m_listeningInstanceId = "";
+                    emit isListeningForHotkeyChanged();
+
+                    if (vk == VK_ESCAPE || vk == VK_LBUTTON) {
+                        return; // Cancelled
+                    }
+
+                    if (!targetId.empty()) {
+                        setInstanceHotkey(QString::fromStdString(targetId), vk, mods);
+                    } else {
+                        markDirty();
+                    }
+                    return;
+                }
+            }
+            return; 
+        }
+
+        std::set<std::pair<int, int>> currentlyPressed;
+        std::set<std::string> toggledInstances;
+
+        for (auto& l : m_config.layers) {
+            if (l.hotkeyVk == 0 || l.presetId.empty()) continue;
+            if (toggledInstances.count(l.presetId)) continue;
+
+            bool isPressed = (GetAsyncKeyState(l.hotkeyVk) & 0x8000) != 0;
+            if (isPressed && l.hotkeyModifiers != 0) {
+                if ((l.hotkeyModifiers & 1) && !(GetAsyncKeyState(VK_CONTROL) & 0x8000)) isPressed = false;
+                if ((l.hotkeyModifiers & 2) && !(GetAsyncKeyState(VK_SHIFT) & 0x8000)) isPressed = false;
+                if ((l.hotkeyModifiers & 4) && !(GetAsyncKeyState(VK_MENU) & 0x8000)) isPressed = false;
+            }
+
+            if (isPressed) {
+                currentlyPressed.insert({l.hotkeyVk, l.hotkeyModifiers});
+                if (m_pressedHotkeys.find({l.hotkeyVk, l.hotkeyModifiers}) == m_pressedHotkeys.end()) {
+                    // Toggle all layers in this instance
+                    bool newState = !l.enabled;
+                    for (auto& l2 : m_config.layers) {
+                        if (l2.presetId == l.presetId) l2.enabled = newState;
+                    }
+                    toggledInstances.insert(l.presetId);
+                    markDirty();
+                }
+            }
+        }
+        
+        m_pressedHotkeys = currentlyPressed;
+
+        // Master hotkey toggle
+        if (m_config.hotkey != 0) {
+            bool masterPressed = (GetAsyncKeyState(m_config.hotkey) & 0x8000) != 0;
+            if (masterPressed && m_config.hotkeyModifiers != 0) {
+                if ((m_config.hotkeyModifiers & 1) && !(GetAsyncKeyState(VK_CONTROL) & 0x8000)) masterPressed = false;
+                if ((m_config.hotkeyModifiers & 2) && !(GetAsyncKeyState(VK_SHIFT) & 0x8000)) masterPressed = false;
+                if ((m_config.hotkeyModifiers & 4) && !(GetAsyncKeyState(VK_MENU) & 0x8000)) masterPressed = false;
+            }
+
+            if (masterPressed && !m_masterHotkeyState) {
+                m_config.visible = !m_config.visible;
+                markDirty();
+            }
+            m_masterHotkeyState = masterPressed;
+        }
+    }
 };
 
 } // namespace overlayx
