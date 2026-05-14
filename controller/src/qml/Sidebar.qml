@@ -34,7 +34,7 @@ Rectangle {
                     color: "#618FF0"
                 }
                 Text {
-                    text: "v2.0"
+                    text: "v3.0"
                     font.pixelSize: 12
                     color: "#6b6b70"
                 }

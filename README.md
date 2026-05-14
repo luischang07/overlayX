@@ -7,9 +7,12 @@ OverlayX is a high-performance, low-latency crosshair overlay system designed fo
 - **Multi-Layer Designer**: Create complex crosshairs by stacking multiple layers with independent shapes, colors, and properties.
 - **Modern UI**: Windows 11-inspired design built with Qt Quick/QML.
 - **Real-Time Updates**: Changes in the controller are instantly reflected in the overlay engine via high-speed IPC.
+- **Spike Detection (v3.0)**: High-precision screen detection engine (Canny + color-aware) that automatically triggers crosshairs or countdowns.
+- **Robust Cooldown**: Intelligent 45-second detection cooldown with manual override to prevent double-triggers.
 - **Advanced Hotkey System**: Assign hotkeys to toggle individual preset instances or the entire overlay globally.
 - **Preset Management**: Save your designs as templates and re-use them across different sessions.
 - **Independent Movement**: Move different crosshair instances independently on your screen.
+- **Resolution Scaling**: Automatic coordinate scaling for 1080p, 1440p (2K), and 4K displays.
 
 ## 📂 Project Structure
 
@@ -20,10 +23,17 @@ OverlayX is a high-performance, low-latency crosshair overlay system designed fo
 
 ## 🛠️ Requirements
 
-- Windows 10/11
-- Qt 6.x
-- CMake 3.16+
-- MSVC 2019+ (with C++17 support)
+### Runtime Prerequisites (For Users)
+- **Windows 10/11** (64-bit)
+- **Administrator Privileges**: Required for screen capture and top-most overlay placement.
+- **DirectX 11**: Compatible GPU for high-performance rendering.
+- **Visual C++ Redistributable 2019/2022**: Ensure the latest [Microsoft VC++ redist](https://aka.ms/vs/17/release/vc_redist.x64.exe) is installed.
+
+### Development Requirements (For Developers)
+- **Qt 6.x**
+- **CMake 3.16+**
+- **MSVC 2019+** (with C++17 support)
+- **OpenCV 4.x** (Required for Spike Detector features)
 
 ## 🏗️ Building
 

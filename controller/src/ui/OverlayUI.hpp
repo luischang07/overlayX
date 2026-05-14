@@ -120,7 +120,7 @@ public:
             if (fontTitle) ImGui::PopFont();
 
             ImGui::SetCursorPosX(20);
-            ImGui::TextColored(ImVec4(0.42f, 0.42f, 0.46f, 1.0f), "v2.0");
+            ImGui::TextColored(ImVec4(0.42f, 0.42f, 0.46f, 1.0f), "v3.0");
 
             ImGui::SetCursorPosY(70);
             ImGui::Spacing();
