@@ -3,7 +3,12 @@
 #include <windows.h>
 #include <memory>
 #include <atomic>
+#include <algorithm>
 #include <iomanip>
+#include <cstdint>
+#include <vector>
+#include <string>
+#include "FileSystemUtils.hpp"
 
 #ifdef SPIKE_DETECTION_ENABLED
 #include <opencv2/opencv.hpp>
@@ -13,6 +18,8 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #endif
+
+#include <chrono>
 
 namespace overlayx
 {
@@ -49,115 +56,179 @@ namespace overlayx
     bool initialize(const std::string &templatePath)
     {
 #ifdef SPIKE_DETECTION_ENABLED
-      m_template = cv::imread(templatePath);
-      return true;
+      // Try high-priority paths first (Installation assets), then fall back to development paths
+      std::vector<std::string> searchPaths = {
+          fs::ResolveAssetPath("spike.png"), // Standard installation path
+          templatePath,
+          "spike.png",
+          "../spike.png",
+          "../../spike.png"};
+
+      for (const auto &path : searchPaths)
+      {
+        m_template = cv::imread(path);
+        if (!m_template.empty())
+        {
+          return true;
+        }
+      }
+
+      return false;
 #else
       return false; // Spike detection disabled (OpenCV not available)
 #endif
     }
 
+    // Suggested delay (ms) for next detection cycle based on recent activity
+    int getSuggestedDelayMs() const
+    {
+#ifdef SPIKE_DETECTION_ENABLED
+      using namespace std::chrono;
+      long long nowMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+      int IDLE_HZ = static_cast<int>(m_detectionIdleHz);
+      int ACTIVE_HZ = static_cast<int>(m_detectionActiveHz);
+      constexpr long long ACTIVE_MS = 2000;
+
+      if ((nowMs - m_lastActivityMs) < ACTIVE_MS)
+        return 1000 / ACTIVE_HZ;
+      return 1000 / IDLE_HZ;
+#else
+      return 1000; // default 1s when disabled
+#endif
+    }
+
+    // Configure detection parameters at runtime (idle and active polling frequencies in Hz)
+    void setDetectionParams(int idleHz, int activeHz)
+    {
+      m_detectionIdleHz = std::max(1, idleHz);
+      m_detectionActiveHz = std::max(1, std::max(activeHz, idleHz + 1));
+    }
+
+    // Simple timing stats (aggregated, low-overhead)
+    struct TimingStats
+    {
+      long long captureMs = 0;
+      long long precheckMs = 0;
+      long long matchingMs = 0;
+      long long totalMs = 0;
+      int cycleCount = 0;
+    };
+
+    TimingStats getTimingStats() const { return m_timingStats; }
+    void resetTimingStats() { m_timingStats = TimingStats(); }
+
     /// Detect spike icon on current screen
-    /// @return true if spike icon detected with confidence > threshold
     bool detectSpike()
     {
 #ifdef SPIKE_DETECTION_ENABLED
-      // Capture screen
-      cv::Mat screen = captureScreen();
-      if (screen.empty())
-        return false;
+      using namespace std::chrono;
+      auto cycleStartMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-      // Calculate scaling factors based on current resolution
-      int currentWidth = screen.cols;
-      int currentHeight = screen.rows;
-      
+      // Use cached resolution or update if necessary
+      updateResolution();
+      int currentWidth = m_cachedWidth;
+      int currentHeight = m_cachedHeight;
 
       DetectionRegion region = computeDetectionRegion(currentWidth, currentHeight);
-
-      int x = region.x;
-      int y = region.y;
-      int w = region.w;
-      int h = region.h;
 
       float scaleX = static_cast<float>(currentWidth) / CALIB_WIDTH;
       float scaleY = static_cast<float>(currentHeight) / CALIB_HEIGHT;
 
-      // Validate bounds
-      if (x < 0 || y < 0 || x + w > currentWidth || y + h > currentHeight)
+      // Capture once, then derive both the cheap thumbnail hash and matching buffer from the same pixels.
+      auto captureStart = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+      cv::Mat screenRegion;
+      std::uint64_t thumbHash = 0;
+      bool captured = captureScreen(region, &screenRegion, &thumbHash);
+      auto captureEnd = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+      m_timingStats.captureMs += (captureEnd - captureStart);
+
+      if (!captured || screenRegion.empty())
         return false;
-      if (w <= 0 || h <= 0)
-        return false;
 
-      // Extract region of interest
-      cv::Rect roiRect(x, y, w, h);
-      cv::Mat screenRegion = screen(roiRect);
+      auto precheckEnd = captureEnd;
+      m_timingStats.precheckMs += (precheckEnd - captureStart);
 
-      // Resize template to match current resolution (natural icon size, not ROI size)
-      int targetW = static_cast<int>(CALIB_WIDTH_ICON * scaleX);
-      int targetH = static_cast<int>(CALIB_HEIGHT_ICON * scaleY);
-      
-      cv::Mat templateScaled;
-      if (m_template.empty()) return false;
-      cv::resize(m_template, templateScaled, cv::Size(targetW, targetH), 0, 0, cv::INTER_LINEAR);
+      long long nowMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-      // Pre-process: Pure Redness Channel
-      // This isolates the red icon and filters out white/gray/black UI (timers) perfectly.
-      // We also apply a threshold to suppress "weak" background redness (like bricks).
-      // Pre-process: HSV Saturated Red Filter
-      // This targets the specific "UI Red" and rejects both neutral and bright/washed backgrounds.
-      auto getSaturatedRed = [](const cv::Mat& bgr) {
-        if (bgr.empty() || bgr.channels() < 3) return bgr;
-        
-        cv::Mat hsv, mask1, mask2, mask;
-        cv::cvtColor(bgr, hsv, cv::COLOR_BGR2HSV);
-        
-        // Red hue spans the 0 and 180 boundary in OpenCV HSV
-        // Saturation > 100 kills white/gray. Value < 180 kills bright pink/white.
-        cv::inRange(hsv, cv::Scalar(0, 100, 40), cv::Scalar(10, 255, 180), mask1);
-        cv::inRange(hsv, cv::Scalar(170, 100, 40), cv::Scalar(180, 255, 180), mask2);
-        cv::bitwise_or(mask1, mask2, mask);
-        
-        // Return Value channel masked to preserve icon structure
-        std::vector<cv::Mat> hsvChannels;
-        cv::split(hsv, hsvChannels);
-        cv::Mat result = cv::Mat::zeros(bgr.size(), CV_8UC1);
-        hsvChannels[2].copyTo(result, mask);
-        return result;
-      };
-
-      cv::Mat processedROI = getSaturatedRed(screenRegion);
-      cv::Mat processedTemplate = getSaturatedRed(templateScaled);
-
-      // Smooth to reduce noise
-      cv::GaussianBlur(processedROI, processedROI, cv::Size(3, 3), 0);
-      cv::GaussianBlur(processedTemplate, processedTemplate, cv::Size(3, 3), 0);
-
-      // Perform template matching using TM_CCOEFF_NORMED
-      cv::Mat result;
-      cv::matchTemplate(processedROI, processedTemplate, result, cv::TM_CCOEFF_NORMED);
-
-      double minVal, maxVal;
-      cv::minMaxLoc(result, &minVal, &maxVal, nullptr, nullptr);
-
-      // Convert to confidence (0-100 where 100 = perfect match)
-      double confidence = std::max(0.0, maxVal * 100.0);
-      
-      // Log detection percentage (live update on same line)
-      // Log detection percentage (live update on same line)
-      std::cout << "\r[" << currentWidth << "x" << currentHeight << "] Detection: " << std::fixed << std::setprecision(1) << confidence << "%    " << std::flush;
-      
-      // Save ROI to file for debugging periodically (every 2 seconds)
-      static auto lastSaveTime = std::chrono::steady_clock::now();
-      auto now = std::chrono::steady_clock::now();
-      if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSaveTime).count() > 2000)
+      if (thumbHash != 0 && thumbHash == m_lastThumbHash)
       {
-        cv::imwrite("debug_roi_screen.png", screenRegion);
-        // Also save processed channel for debugging
-        cv::imwrite("debug_roi_processed.png", processedROI);
-        lastSaveTime = now;
+        // ROI is unchanged, so keep the detector cold and skip the expensive match path.
+        m_timingStats.totalMs += (nowMs - cycleStartMs);
+        m_timingStats.cycleCount++;
+        logStatsIfNeeded();
+        return false;
       }
 
-      // For intensity-based CCOEFF_NORMED, 0.45-0.50 is a solid threshold
-      return maxVal > DETECTION_THRESHOLD;
+      m_lastThumbHash = thumbHash;
+      m_lastActivityMs = nowMs;
+
+      if (m_template.empty())
+        return false;
+
+      // Match in grayscale with cached DPI-scaled template and mask. 
+      // Using TM_CCORR_NORMED with a mask effectively ignores the template's background.
+      // 1. Stricter color filtering (Red - Green/Blue)
+      cv::Mat bgr[3];
+      cv::split(screenRegion, bgr);
+      cv::Mat rg, rb, redness;
+      cv::subtract(bgr[2], bgr[1], rg);
+      cv::subtract(bgr[2], bgr[0], rb);
+      cv::min(rg, rb, redness);
+      
+      // 2. Edge Detection: Distinguish sharp icon from smooth backgrounds
+      cv::Mat edges;
+      cv::Canny(redness, edges, 50, 150);
+      cv::GaussianBlur(edges, edges, cv::Size(3, 3), 0);
+      cv::Mat roiGray = edges;
+
+      int targetW = static_cast<int>(CALIB_WIDTH_ICON * scaleX);
+      int targetH = static_cast<int>(CALIB_HEIGHT_ICON * scaleY);
+      ensureCachedTemplate(targetW, targetH);
+      if (m_cachedTemplateGray.empty() || m_cachedMask.empty())
+        return false;
+
+      // Intensity pre-check: The spike icon has significant brightness. 
+      // If the average intensity in the ROI is very low, it's a false positive (e.g. black screen).
+      cv::Scalar meanIntensity = cv::mean(roiGray);
+      if (meanIntensity[0] < 20.0) 
+        return false;
+
+      auto matchStart = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+      cv::Mat result;
+      
+      // TM_CCORR_NORMED is used because it is one of the few methods in OpenCV that supports masks.
+      // We combine it with an intensity pre-check to handle dark/flat backgrounds.
+      cv::matchTemplate(roiGray, m_cachedTemplateGray, result, cv::TM_CCORR_NORMED, m_cachedMask);
+
+      double minVal, maxVal;
+      cv::Point maxLoc;
+      cv::minMaxLoc(result, nullptr, &maxVal, nullptr, &maxLoc);
+      auto matchEnd = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+      m_timingStats.matchingMs += (matchEnd - matchStart);
+
+      auto cycleEnd = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+      m_timingStats.totalMs += (cycleEnd - cycleStartMs);
+      m_timingStats.cycleCount++;
+      logStatsIfNeeded();
+
+      // With masked TM_CCORR_NORMED, 0.70-0.80 is a reliable threshold
+      if (maxVal > DETECTION_THRESHOLD)
+      {
+          std::cout << "[SpikeDetector] MATCH! Score: " << maxVal << " at (" << maxLoc.x << ", " << maxLoc.y << ")" << std::endl;
+          
+          // Debug: Save what we found
+          // cv::imwrite("debug_match_edges.png", roiGray);
+          // cv::imwrite("debug_match_roi.png", screenRegion);
+
+          return true;
+      }
+      
+      // Periodic log to see it's alive
+      static int tick = 0;
+      if (++tick % 60 == 0) {
+          std::cout << "[SpikeDetector] Scanning... Best Score: " << maxVal << "\r" << std::flush;
+      }
+      return false;
 #else
       return false; // Spike detection disabled (OpenCV not available)
 #endif
@@ -188,6 +259,67 @@ namespace overlayx
     }
 
   private:
+    static inline int m_overlayOffsetX = 0;
+    static inline int m_overlayOffsetY = 0;
+    static inline int m_cachedWidth = 0;
+    static inline int m_cachedHeight = 0;
+    static inline long long m_lastResUpdate = 0;
+
+    static void updateResolution()
+    {
+      using namespace std::chrono;
+      long long now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+      // Update resolution every 5 seconds to minimize system calls
+      if (m_cachedWidth == 0 || (now - m_lastResUpdate > 5000))
+      {
+        DEVMODEW dm;
+        ZeroMemory(&dm, sizeof(dm));
+        dm.dmSize = sizeof(dm);
+        if (EnumDisplaySettingsW(NULL, ENUM_CURRENT_SETTINGS, &dm))
+        {
+          m_cachedWidth = dm.dmPelsWidth;
+          m_cachedHeight = dm.dmPelsHeight;
+        }
+        else
+        {
+          // Fallback if EnumDisplaySettings fails
+          HDC hdc = GetDC(NULL);
+          m_cachedWidth = GetDeviceCaps(hdc, DESKTOPHORZRES);
+          m_cachedHeight = GetDeviceCaps(hdc, DESKTOPVERTRES);
+          ReleaseDC(NULL, hdc);
+        }
+        m_lastResUpdate = now;
+      }
+    }
+
+    // Log aggregated timing stats every 10 seconds
+    void logStatsIfNeeded() const
+    {
+      using namespace std::chrono;
+      static long long lastLogMs = 0;
+      long long nowMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+      if (lastLogMs == 0)
+        lastLogMs = nowMs;
+
+      if ((nowMs - lastLogMs) >= 10000) // Every 10 seconds
+      {
+        double avgCapture = m_timingStats.cycleCount > 0 ? static_cast<double>(m_timingStats.captureMs) / m_timingStats.cycleCount : 0.0;
+        double avgPrecheck = m_timingStats.cycleCount > 0 ? static_cast<double>(m_timingStats.precheckMs) / m_timingStats.cycleCount : 0.0;
+        double avgMatching = m_timingStats.cycleCount > 0 ? static_cast<double>(m_timingStats.matchingMs) / m_timingStats.cycleCount : 0.0;
+        double avgTotal = m_timingStats.cycleCount > 0 ? static_cast<double>(m_timingStats.totalMs) / m_timingStats.cycleCount : 0.0;
+
+        OutputDebugStringA("=== Spike Detection Timing Stats (10s aggregate) ===\n");
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Cycles: %d | Capture: %.2fms | Precheck: %.2fms | Matching: %.2fms | Total: %.2fms\n",
+                 m_timingStats.cycleCount, avgCapture, avgPrecheck, avgMatching, avgTotal);
+        OutputDebugStringA(buf);
+
+        lastLogMs = nowMs;
+      }
+    }
+
 #ifdef SPIKE_DETECTION_ENABLED
     // Calibrated coordinates for capture resolution (2560 x 1440)
     static constexpr int CALIB_WIDTH = 2560;
@@ -201,75 +333,151 @@ namespace overlayx
     static constexpr int CALIB_WIDTH_ICON = 117;  // 1339 - 1222
     static constexpr int CALIB_HEIGHT_ICON = 110; // 126 - 16
 
-    // Detection threshold (tuned for Spikeness matching)
-    static constexpr float DETECTION_THRESHOLD = 0.45f;
+    // Detection threshold (tuned for masked correlation matching)
+    static constexpr float DETECTION_THRESHOLD = 0.70f;
 
-    /// Capture current screen to OpenCV Mat
-    cv::Mat captureScreen()
+    // Thumbnail pre-check state
+    static constexpr int THUMB_SIZE = 16;
+    std::uint64_t m_lastThumbHash{0};
+    long long m_lastActivityMs{0};
+    int m_cachedTemplateWidth{0};
+    int m_cachedTemplateHeight{0};
+    cv::Mat m_cachedTemplateGray;
+    cv::Mat m_cachedMask;
+
+    void ensureCachedTemplate(int targetW, int targetH)
     {
-      // GDI BitBlt-based screen capture (simpler, avoids DXGI complexity)
-      // Get actual monitor resolution (not DPI-scaled virtual coordinates)
-      int screenWidth = 0, screenHeight = 0;
-      // Enumerate monitor to get physical dimensions (respects actual monitor resolution)
-      HDC hdc = GetDC(NULL);
-      screenWidth = GetDeviceCaps(hdc, DESKTOPHORZRES);
-      screenHeight = GetDeviceCaps(hdc, DESKTOPVERTRES);
-      ReleaseDC(NULL, hdc);
-      
-      // Fallback to virtual screen metrics if GetDeviceCaps fails (unlikely)
-      if (screenWidth <= 0 || screenHeight <= 0)
+      if (targetW <= 0 || targetH <= 0)
+        return;
+
+      if (m_cachedTemplateGray.empty() || m_cachedTemplateWidth != targetW || m_cachedTemplateHeight != targetH)
       {
-        screenWidth = GetSystemMetrics(SM_CXSCREEN);
-        screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        cv::Mat bgr[3];
+        cv::split(m_template, bgr);
+        cv::Mat rg, rb, templateRedness;
+        cv::subtract(bgr[2], bgr[1], rg);
+        cv::subtract(bgr[2], bgr[0], rb);
+        cv::min(rg, rb, templateRedness);
+        
+        cv::Mat resizedRedness;
+        cv::resize(templateRedness, resizedRedness, cv::Size(targetW, targetH), 0, 0, cv::INTER_LINEAR);
+        
+        // Use Canny on template to get the shape
+        cv::Mat templateEdges;
+        cv::Canny(resizedRedness, templateEdges, 50, 150);
+        
+        // Binary mask from redness (foreground only)
+        cv::threshold(resizedRedness, m_cachedMask, 15, 255, cv::THRESH_BINARY);
+        
+        // Blur edges for robustness
+        cv::GaussianBlur(templateEdges, m_cachedTemplateGray, cv::Size(3, 3), 0);
+
+        m_cachedTemplateWidth = targetW;
+        m_cachedTemplateHeight = targetH;
+      }
+    }
+
+    /// Capture specific region of the screen once, then return both the hash and a BGR view if requested.
+    bool captureScreen(const DetectionRegion &region, cv::Mat *outBgr, std::uint64_t *outThumbHash)
+    {
+      if (region.w <= 0 || region.h <= 0)
+        return false;
+
+      // Ensure persistent resources are ready
+      if (!m_hScreenDC)
+        m_hScreenDC = GetDC(nullptr);
+      if (!m_hMemDC)
+        m_hMemDC = CreateCompatibleDC(m_hScreenDC);
+
+      // Recreate bitmap only if size changed
+      if (!m_hBitmap || m_bitmapW != region.w || m_bitmapH != region.h)
+      {
+        if (m_hBitmap)
+          DeleteObject(m_hBitmap);
+        m_hBitmap = CreateCompatibleBitmap(m_hScreenDC, region.w, region.h);
+        m_bitmapW = region.w;
+        m_bitmapH = region.h;
       }
 
-      HDC hScreenDC = GetDC(nullptr);
-      HDC hMemDC = CreateCompatibleDC(hScreenDC);
-      HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
-      HGDIOBJ hOld = SelectObject(hMemDC, hBitmap);
+      HGDIOBJ hOld = SelectObject(m_hMemDC, m_hBitmap);
 
-      // Include layered windows in capture when possible
-      BitBlt(hMemDC, 0, 0, screenWidth, screenHeight, hScreenDC, 0, 0, SRCCOPY | CAPTUREBLT);
+      // NO CAPTUREBLT = No cursor flickering. We only need the base screen content.
+      BitBlt(m_hMemDC, 0, 0, region.w, region.h, m_hScreenDC, region.x, region.y, SRCCOPY);
 
-      BITMAP bmp;
-      GetObject(hBitmap, sizeof(BITMAP), &bmp);
-
-      BITMAPINFOHEADER bi;
-      ZeroMemory(&bi, sizeof(bi));
+      BITMAPINFOHEADER bi = {0};
       bi.biSize = sizeof(BITMAPINFOHEADER);
-      bi.biWidth = screenWidth;
-      bi.biHeight = -screenHeight; // top-down
+      bi.biWidth = region.w;
+      bi.biHeight = -region.h; // top-down
       bi.biPlanes = 1;
       bi.biBitCount = 32;
       bi.biCompression = BI_RGB;
 
-      std::vector<BYTE> buffer(screenWidth * screenHeight * 4);
-      BITMAPINFO binfo;
-      ZeroMemory(&binfo, sizeof(binfo));
+      // Reuse internal buffer to avoid reallocations
+      if (m_captureBuffer.size() < static_cast<size_t>(region.w * region.h * 4))
+      {
+        m_captureBuffer.resize(region.w * region.h * 4);
+      }
+
+      BITMAPINFO binfo = {0};
       binfo.bmiHeader = bi;
 
-      GetDIBits(hScreenDC, hBitmap, 0, screenHeight, buffer.data(), &binfo, DIB_RGB_COLORS);
+      if (!GetDIBits(m_hScreenDC, m_hBitmap, 0, region.h, m_captureBuffer.data(), &binfo, DIB_RGB_COLORS))
+      {
+        SelectObject(m_hMemDC, hOld);
+        return false;
+      }
 
-      // Build OpenCV Mat from buffer (BGRA) and convert to BGR
-      cv::Mat mat(screenHeight, screenWidth, CV_8UC4, buffer.data());
-      cv::Mat matBGR;
-      cv::cvtColor(mat, matBGR, cv::COLOR_BGRA2BGR);
+      if (outThumbHash)
+      {
+        const std::uint64_t FNV_OFFSET = 14695981039346656037ull;
+        const std::uint64_t FNV_PRIME = 1099511628211ull;
+        std::uint64_t hash = FNV_OFFSET;
+        for (int ty = 0; ty < THUMB_SIZE; ++ty)
+        {
+          int sy = (ty * region.h) / THUMB_SIZE;
+          for (int tx = 0; tx < THUMB_SIZE; ++tx)
+          {
+            int sx = (tx * region.w) / THUMB_SIZE;
+            size_t idx = (static_cast<size_t>(sy) * region.w + sx) * 4;
+            if (idx + 2 >= m_captureBuffer.size())
+              continue;
 
-      // Cleanup GDI
-      SelectObject(hMemDC, hOld);
-      DeleteObject(hBitmap);
-      DeleteDC(hMemDC);
-      ReleaseDC(nullptr, hScreenDC);
+            unsigned char b = m_captureBuffer[idx + 0];
+            unsigned char g = m_captureBuffer[idx + 1];
+            unsigned char r = m_captureBuffer[idx + 2];
+            unsigned char gray = static_cast<unsigned char>((r * 77 + g * 151 + b * 28) >> 8);
 
-      return matBGR.clone();
+            hash ^= static_cast<std::uint64_t>(gray);
+            hash *= FNV_PRIME;
+          }
+        }
+        *outThumbHash = hash;
+      }
+
+      if (outBgr)
+      {
+        cv::Mat mat(region.h, region.w, CV_8UC4, m_captureBuffer.data());
+        cv::cvtColor(mat, *outBgr, cv::COLOR_BGRA2BGR);
+      }
+
+      SelectObject(m_hMemDC, hOld);
+      return true;
     }
 
+    // Persistent GDI resources for capture optimization
+    HDC m_hScreenDC{nullptr};
+    HDC m_hMemDC{nullptr};
+    HBITMAP m_hBitmap{nullptr};
+    int m_bitmapW{0};
+    int m_bitmapH{0};
+    std::vector<BYTE> m_captureBuffer;
     cv::Mat m_template;
-  #if defined(SPIKE_DETECTION_ENABLED)
-    static inline int m_overlayOffsetX = 0;
-    static inline int m_overlayOffsetY = 0;
-  #endif
 #endif
+
+    // Detection parameters and timing
+    int m_detectionIdleHz = 3;
+    int m_detectionActiveHz = 10;
+    TimingStats m_timingStats;
   };
 
 } // namespace overlayx

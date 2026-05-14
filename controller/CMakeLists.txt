@@ -53,7 +53,12 @@ target_link_libraries(OverlayController PRIVATE
     Qt6::Qml
 )
 
-# Windows: suppress console window in release
-# set_target_properties(OverlayController PROPERTIES
-#     WIN32_EXECUTABLE TRUE
-# )
+
+# Auto-update portable folder
+if(EXISTS "${PORTABLE_DIR}")
+    add_custom_command(TARGET OverlayController POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:OverlayController> "${PORTABLE_DIR}/OverlayController.exe"
+        COMMENT "Updating ${PORTABLE_DIR}/OverlayController.exe"
+    )
+endif()
+

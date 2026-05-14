@@ -57,6 +57,8 @@ namespace overlayx
     Q_PROPERTY(QString countdownStartHotkey READ countdownStartHotkey NOTIFY configChanged)
     Q_PROPERTY(QString countdownStopHotkey READ countdownStopHotkey NOTIFY configChanged)
     Q_PROPERTY(QString countdownResetHotkey READ countdownResetHotkey NOTIFY configChanged)
+    Q_PROPERTY(bool countdownDetectionEnabled READ countdownDetectionEnabled WRITE setCountdownDetectionEnabled NOTIFY configChanged)
+    Q_PROPERTY(QString countdownDetectionHotkey READ countdownDetectionHotkey NOTIFY configChanged)
 
   public:
     explicit AppBackend(std::unique_ptr<IConfigRepository> repo,
@@ -67,6 +69,21 @@ namespace overlayx
       auto loaded = m_repo->load();
       if (loaded)
         m_config = *loaded;
+
+      // Enforce clean start defaults as requested
+      m_config.visible = true;
+      m_config.countdown.enabled = false;
+      m_config.countdownRuntime.enabled = false;
+      m_config.countdown.detectionEnabled = false;
+      
+      // Clear all active layers (instances) to start with no crosshair visible
+      m_config.layers.clear();
+
+      // Set default detection toggle hotkey if not set
+      if (m_config.countdown.hotkeyDetectionVk == 0) {
+          m_config.countdown.hotkeyDetectionVk = VK_HOME;
+          m_config.countdown.hotkeyDetectionMods = 0;
+      }
 
       m_ipc->start();
 
@@ -95,6 +112,16 @@ namespace overlayx
       m_hotkeyTimer.setInterval(20);
       connect(&m_hotkeyTimer, &QTimer::timeout, this, &AppBackend::pollHotkeys);
       m_hotkeyTimer.start();
+
+      // IPC Update Throttling (10ms interval = ~100 updates/sec max)
+      m_ipcUpdateTimer.setInterval(10);
+      m_ipcUpdateTimer.setSingleShot(true);
+      connect(&m_ipcUpdateTimer, &QTimer::timeout, this, [this]() {
+        if (m_ipcUpdatePending) {
+          m_ipc->sendConfig(m_config);
+          m_ipcUpdatePending = false;
+        }
+      });
     }
 
     ~AppBackend() override
@@ -179,6 +206,7 @@ namespace overlayx
     float countdownPosX() const { return m_config.countdown.posX; }
     float countdownPosY() const { return m_config.countdown.posY; }
     int countdownFontSize() const { return m_config.countdown.fontSize; }
+    bool countdownDetectionEnabled() const { return m_config.countdown.detectionEnabled; }
     QString countdownColorHex() const
     {
       auto &c = m_config.countdown.color;
@@ -199,6 +227,10 @@ namespace overlayx
     QString countdownResetHotkey() const
     {
       return formatHotkeyString(m_config.countdown.hotkeyResetVk, m_config.countdown.hotkeyResetMods);
+    }
+    QString countdownDetectionHotkey() const
+    {
+      return formatHotkeyString(m_config.countdown.hotkeyDetectionVk, m_config.countdown.hotkeyDetectionMods);
     }
 
     void setCountdownEnabled(bool v)
@@ -241,6 +273,14 @@ namespace overlayx
         markDirty();
       }
     }
+    void setCountdownDetectionEnabled(bool v)
+    {
+      if (m_config.countdown.detectionEnabled != v)
+      {
+        m_config.countdown.detectionEnabled = v;
+        markDirty();
+      }
+    }
     void setCountdownColorHex(const QString &hex)
     {
       QColor qc(hex);
@@ -278,6 +318,11 @@ namespace overlayx
       {
         m_config.countdown.hotkeyResetVk = 0;
         m_config.countdown.hotkeyResetMods = 0;
+      }
+      else if (hotkeyType == "detection")
+      {
+        m_config.countdown.hotkeyDetectionVk = 0;
+        m_config.countdown.hotkeyDetectionMods = 0;
       }
       markDirty();
     }
@@ -637,6 +682,11 @@ namespace overlayx
           m_config.countdown.hotkeyResetVk = vk;
           m_config.countdown.hotkeyResetMods = modifiers;
         }
+        else if (hotkeyType == "detection")
+        {
+          m_config.countdown.hotkeyDetectionVk = vk;
+          m_config.countdown.hotkeyDetectionMods = modifiers;
+        }
         markDirty();
         return;
       }
@@ -888,7 +938,8 @@ namespace overlayx
             l.posX += delta;
         }
         m_dirty = true;
-        m_ipc->sendConfig(m_config);
+        m_ipcUpdatePending = true;
+        if (!m_ipcUpdateTimer.isActive()) m_ipcUpdateTimer.start();
       }
     }
 
@@ -942,7 +993,8 @@ namespace overlayx
             l.posY += delta;
         }
         m_dirty = true;
-        m_ipc->sendConfig(m_config);
+        m_ipcUpdatePending = true;
+        if (!m_ipcUpdateTimer.isActive()) m_ipcUpdateTimer.start();
       }
     }
 
@@ -1082,7 +1134,8 @@ namespace overlayx
     {
       m_dirty = true;
       m_configUpdateTick++;
-      m_ipc->sendConfig(m_config);
+      m_ipcUpdatePending = true;
+      if (!m_ipcUpdateTimer.isActive()) m_ipcUpdateTimer.start();
       emit configChanged();
     }
 
@@ -1211,6 +1264,8 @@ namespace overlayx
     QTimer m_saveTimer;
     QTimer m_statusTimer;
     QTimer m_hotkeyTimer;
+    QTimer m_ipcUpdateTimer;
+    bool m_ipcUpdatePending{false};
     int m_selectedLayerIndex{0};
     int m_configUpdateTick{0};
 
@@ -1220,6 +1275,7 @@ namespace overlayx
     bool m_countdownStartPressedState{false};
     bool m_countdownStopPressedState{false};
     bool m_countdownResetPressedState{false};
+    bool m_countdownDetectionPressedState{false};
 
     bool m_isListening{false};
     std::string m_listeningInstanceId;
@@ -1380,6 +1436,26 @@ namespace overlayx
           resetCountdown();
         }
         m_countdownResetPressedState = resetPressed;
+      }
+      
+      if (m_config.countdown.hotkeyDetectionVk != 0)
+      {
+        bool detectPressed = (GetAsyncKeyState(m_config.countdown.hotkeyDetectionVk) & 0x8000) != 0;
+        if (detectPressed && m_config.countdown.hotkeyDetectionMods != 0)
+        {
+          if ((m_config.countdown.hotkeyDetectionMods & 1) && !(GetAsyncKeyState(VK_CONTROL) & 0x8000))
+            detectPressed = false;
+          if ((m_config.countdown.hotkeyDetectionMods & 2) && !(GetAsyncKeyState(VK_SHIFT) & 0x8000))
+            detectPressed = false;
+          if ((m_config.countdown.hotkeyDetectionMods & 4) && !(GetAsyncKeyState(VK_MENU) & 0x8000))
+            detectPressed = false;
+        }
+
+        if (detectPressed && m_countdownDetectionPressedState == false)
+        {
+          setCountdownDetectionEnabled(!m_config.countdown.detectionEnabled);
+        }
+        m_countdownDetectionPressedState = detectPressed;
       }
 
       // Master hotkey toggle

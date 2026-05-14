@@ -36,9 +36,18 @@ ColumnLayout {
 
             Switch {
                 text: "Enable Countdown Timer"
-                checked: backend.countdownEnabled
-                onToggled: backend.countdownEnabled = checked
+                checked: backend ? backend.countdownEnabled : false
+                onToggled: if(backend) backend.countdownEnabled = checked
                 Material.accent: "#618FF0"
+            }
+
+            Switch {
+                text: "Screen Detection"
+                checked: backend ? backend.countdownDetectionEnabled : false
+                onToggled: if(backend) backend.countdownDetectionEnabled = checked
+                Material.accent: "#618FF0"
+                ToolTip.visible: hovered
+                ToolTip.text: "Automatically start countdown when spike is detected on screen"
             }
 
             Item { Layout.fillWidth: true }
@@ -91,15 +100,15 @@ ColumnLayout {
             SpinBox {
                 from: 1
                 to: 3600
-                value: backend.countdownDuration
-                onValueModified: backend.countdownDuration = value
+                value: backend ? backend.countdownDuration : 45
+                onValueModified: if(backend) backend.countdownDuration = value
                 Material.accent: "#618FF0"
                 Layout.preferredWidth: 164
                 font.pixelSize: 16
             }
 
             TextField {
-                text: backend.countdownDuration.toString()
+                text: backend ? backend.countdownDuration.toString() : "45"
                 Layout.preferredWidth: 100
                 implicitWidth: 100
                 function commitValue() {
@@ -154,14 +163,14 @@ ColumnLayout {
             Slider {
                 from: 0.0
                 to: 1.0
-                value: backend.countdownPosX
-                onValueChanged: backend.countdownPosX = value
+                value: backend ? backend.countdownPosX : 0.5
+                onValueChanged: if(backend) backend.countdownPosX = value
                 Layout.preferredWidth: 150
                 Material.accent: "#618FF0"
             }
 
             TextField {
-                text: (backend.countdownPosX * 100).toFixed(1)
+                text: backend ? (backend.countdownPosX * 100).toFixed(1) : "50.0"
                 function commitValue() {
                     let val = parseFloat(text)
                     if (!isNaN(val) && val >= 0 && val <= 100) {
@@ -195,14 +204,14 @@ ColumnLayout {
             Slider {
                 from: 0.0
                 to: 1.0
-                value: backend.countdownPosY
-                onValueChanged: backend.countdownPosY = value
+                value: backend ? backend.countdownPosY : 0.5
+                onValueChanged: if(backend) backend.countdownPosY = value
                 Layout.preferredWidth: 150
                 Material.accent: "#618FF0"
             }
 
             TextField {
-                text: (backend.countdownPosY * 100).toFixed(1)
+                text: backend ? (backend.countdownPosY * 100).toFixed(1) : "50.0"
                 function commitValue() {
                     let val = parseFloat(text)
                     if (!isNaN(val) && val >= 0 && val <= 100) {
@@ -242,15 +251,15 @@ ColumnLayout {
             SpinBox {
                 from: 8
                 to: 200
-                value: backend.countdownFontSize
-                onValueModified: backend.countdownFontSize = value
+                value: backend ? backend.countdownFontSize : 48
+                onValueModified: if(backend) backend.countdownFontSize = value
                 Material.accent: "#618FF0"
                 Layout.preferredWidth: 164
                 font.pixelSize: 16
             }
 
             TextField {
-                text: backend.countdownFontSize.toString()
+                text: backend ? backend.countdownFontSize.toString() : "48"
                 Layout.preferredWidth: 100
                 implicitWidth: 100
                 function commitValue() {
@@ -300,7 +309,7 @@ ColumnLayout {
                 Layout.preferredWidth: 72
                 Layout.preferredHeight: 40
                 radius: 6
-                color: backend.countdownColorHex
+                color: backend ? backend.countdownColorHex : "#ffffff"
                 border.color: "#2a2a2e"
                 border.width: 2
 
@@ -311,7 +320,7 @@ ColumnLayout {
             }
 
             TextField {
-                text: backend.countdownColorHex
+                text: backend ? backend.countdownColorHex : "#ffffff"
                 function commitValue() {
                     let hex = text.trim()
                     if (/^#[0-9a-fA-F]{8}$/.test(hex)) {
@@ -345,7 +354,7 @@ ColumnLayout {
     ColorDialog {
         id: colorDialog
         options: ColorDialog.ShowAlphaChannel
-        selectedColor: backend.countdownColorHex
+        selectedColor: backend ? backend.countdownColorHex : "#ffffff"
         onAccepted: backend.countdownColorHex = selectedColor.toString()
     }
 }

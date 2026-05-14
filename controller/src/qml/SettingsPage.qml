@@ -18,8 +18,8 @@ ColumnLayout {
 
     Switch {
         text: "Master Visibility"
-        checked: backend.visible
-        onToggled: backend.visible = checked
+        checked: backend ? backend.visible : true
+        onToggled: if(backend) backend.visible = checked
         Material.accent: "#618FF0"
     }
 
@@ -29,8 +29,8 @@ ColumnLayout {
 
     Switch {
         text: "Edit Mode (Drag Overlay)"
-        checked: backend.editMode
-        onToggled: backend.editMode = checked
+        checked: backend ? backend.editMode : false
+        onToggled: if(backend) backend.editMode = checked
         Material.accent: "#618FF0"
     }
 

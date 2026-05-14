@@ -31,7 +31,7 @@ ColumnLayout {
     }
 
     Text {
-        text: "Active Layers: " + backend.layerCount
+        text: "Active Layers: " + (backend ? backend.layerCount : 0)
         font.pixelSize: 15
         color: "#f0f0f2"
     }
@@ -45,14 +45,14 @@ ColumnLayout {
             Material.foreground: "#ffffff"
             implicitWidth: 180
             implicitHeight: 40
-            onClicked: backend.enableAllLayers()
+            onClicked: if(backend) backend.enableAllLayers()
         }
 
         Button {
             text: "Disable All Layers"
             implicitWidth: 180
             implicitHeight: 40
-            onClicked: backend.disableAllLayers()
+            onClicked: if(backend) backend.disableAllLayers()
         }
     }
 }

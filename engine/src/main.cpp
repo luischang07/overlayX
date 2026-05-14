@@ -5,7 +5,7 @@
 #include <memory>
 #include <windows.h>
 
-int main() {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Enable DPI awareness to get actual physical resolution
     BOOL dpiResult = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if (!dpiResult) {

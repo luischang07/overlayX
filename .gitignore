@@ -8,3 +8,8 @@ bin/
 *.log
 engine_debug.txt
 overlay_config.json
+portable/
+scratch/
+s
+launcher/
+install.ps1

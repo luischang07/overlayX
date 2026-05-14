@@ -28,6 +28,12 @@ namespace overlayx
     int g = 255;
     int b = 255;
     int a = 255;
+
+    bool operator==(const Color &other) const
+    {
+      return r == other.r && g == other.g && b == other.b && a == other.a;
+    }
+    bool operator!=(const Color &other) const { return !(*this == other); }
   };
 
   inline void to_json(nlohmann::json &j, const Color &c)
@@ -82,6 +88,18 @@ namespace overlayx
     std::string presetId = ""; // Group layers together for movement
     int hotkeyVk = 0;
     int hotkeyModifiers = 0;
+
+    bool operator==(const Layer &o) const
+    {
+      return name == o.name && shape == o.shape && color == o.color &&
+             thickness == o.thickness && width == o.width && height == o.height &&
+             gap == o.gap && posX == o.posX && posY == o.posY &&
+             rotation == o.rotation && enabled == o.enabled &&
+             outlineEnabled == o.outlineEnabled && outlineColor == o.outlineColor &&
+             outlineThickness == o.outlineThickness && presetId == o.presetId &&
+             hotkeyVk == o.hotkeyVk && hotkeyModifiers == o.hotkeyModifiers;
+    }
+    bool operator!=(const Layer &o) const { return !(*this == o); }
   };
 
   inline void to_json(nlohmann::json &j, const Layer &l)
@@ -171,12 +189,33 @@ namespace overlayx
     int hotkeyStopMods = 0;
     int hotkeyResetVk = 0; // VK for reset
     int hotkeyResetMods = 0;
+    int hotkeyDetectionVk = 0; // VK for toggle detection
+    int hotkeyDetectionMods = 0;
+
+    bool detectionEnabled = false;
+    // Detection mode and adaptive parameters
+    std::string detectionMode = "balanced"; // low, balanced, fast
+    int detectionIdleHz = 3;                // polling frequency when idle
+    int detectionActiveHz = 10;             // polling frequency when active
+
+    bool operator==(const CountdownConfig &o) const
+    {
+      return enabled == o.enabled && duration == o.duration &&
+             posX == o.posX && posY == o.posY && fontSize == o.fontSize &&
+             color == o.color && hotkeyStartVk == o.hotkeyStartVk &&
+             hotkeyStartMods == o.hotkeyStartMods && hotkeyStopVk == o.hotkeyStopVk &&
+             hotkeyStopMods == o.hotkeyStopMods && hotkeyResetVk == o.hotkeyResetVk &&
+             hotkeyResetMods == o.hotkeyResetMods && detectionEnabled == o.detectionEnabled &&
+             hotkeyDetectionVk == o.hotkeyDetectionVk && hotkeyDetectionMods == o.hotkeyDetectionMods &&
+             detectionMode == o.detectionMode && detectionIdleHz == o.detectionIdleHz && detectionActiveHz == o.detectionActiveHz;
+    }
+    bool operator!=(const CountdownConfig &o) const { return !(*this == o); }
   };
 
   inline void to_json(nlohmann::json &j, const CountdownConfig &c)
   {
     j = nlohmann::json{
-        {"enabled", c.enabled}, {"duration", c.duration}, {"posX", c.posX}, {"posY", c.posY}, {"fontSize", c.fontSize}, {"color", c.color}, {"hotkeyStartVk", c.hotkeyStartVk}, {"hotkeyStartMods", c.hotkeyStartMods}, {"hotkeyStopVk", c.hotkeyStopVk}, {"hotkeyStopMods", c.hotkeyStopMods}, {"hotkeyResetVk", c.hotkeyResetVk}, {"hotkeyResetMods", c.hotkeyResetMods}};
+        {"enabled", c.enabled}, {"duration", c.duration}, {"posX", c.posX}, {"posY", c.posY}, {"fontSize", c.fontSize}, {"color", c.color}, {"hotkeyStartVk", c.hotkeyStartVk}, {"hotkeyStartMods", c.hotkeyStartMods}, {"hotkeyStopVk", c.hotkeyStopVk}, {"hotkeyStopMods", c.hotkeyStopMods}, {"hotkeyResetVk", c.hotkeyResetVk}, {"hotkeyResetMods", c.hotkeyResetMods}, {"detectionEnabled", c.detectionEnabled}, {"hotkeyDetectionVk", c.hotkeyDetectionVk}, {"hotkeyDetectionMods", c.hotkeyDetectionMods}, {"detectionMode", c.detectionMode}, {"detectionIdleHz", c.detectionIdleHz}, {"detectionActiveHz", c.detectionActiveHz}};
   }
 
   inline void from_json(const nlohmann::json &j, CountdownConfig &c)
@@ -194,6 +233,12 @@ namespace overlayx
     c.hotkeyStopMods = j.value("hotkeyStopMods", c.hotkeyStopMods);
     c.hotkeyResetVk = j.value("hotkeyResetVk", c.hotkeyResetVk);
     c.hotkeyResetMods = j.value("hotkeyResetMods", c.hotkeyResetMods);
+    c.detectionEnabled = j.value("detectionEnabled", c.detectionEnabled);
+    c.hotkeyDetectionVk = j.value("hotkeyDetectionVk", c.hotkeyDetectionVk);
+    c.hotkeyDetectionMods = j.value("hotkeyDetectionMods", c.hotkeyDetectionMods);
+    c.detectionMode = j.value("detectionMode", c.detectionMode);
+    c.detectionIdleHz = j.value("detectionIdleHz", c.detectionIdleHz);
+    c.detectionActiveHz = j.value("detectionActiveHz", c.detectionActiveHz);
   }
 
   // Extended countdown runtime control fields
@@ -204,6 +249,14 @@ namespace overlayx
     long long startTimestampMs = 0;
     // when paused, remaining milliseconds stored here (>=0). -1 means not paused.
     long long pausedRemainingMs = -1;
+
+    bool operator==(const CountdownRuntime &o) const
+    {
+      return enabled == o.enabled &&
+             startTimestampMs == o.startTimestampMs &&
+             pausedRemainingMs == o.pausedRemainingMs;
+    }
+    bool operator!=(const CountdownRuntime &o) const { return !(*this == o); }
   };
 
   inline void to_json(nlohmann::json &j, const CountdownRuntime &r)
@@ -238,9 +291,19 @@ namespace overlayx
 
     OverlayConfig()
     {
-      // Add a default layer
-      layers.push_back(Layer{"Default", ShapeType::Cross, {255, 255, 255, 255}, 2.0f, 20.0f, 20.0f, 4.0f});
+      // Start with no default layers as requested
     }
+
+    bool operator==(const OverlayConfig &o) const
+    {
+      return posX == o.posX && posY == o.posY && hotkey == o.hotkey &&
+             hotkeyModifiers == o.hotkeyModifiers && visible == o.visible &&
+             editMode == o.editMode && layers == o.layers &&
+             countdown == o.countdown &&
+             countdownRuntime == o.countdownRuntime &&
+             shouldExit == o.shouldExit;
+    }
+    bool operator!=(const OverlayConfig &o) const { return !(*this == o); }
   };
 
   inline void to_json(nlohmann::json &j, const OverlayConfig &c)

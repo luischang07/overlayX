@@ -13,9 +13,9 @@ Item {
         spacing: 0
 
         // Force refresh when config changes
-        property var layerData: backend.layers
-        property int selectedIndex: backend.selectedLayerIndex
-        property var selectedLayer: selectedIndex >= 0 && selectedIndex < layerData.length ? layerData[selectedIndex] : null
+        property var layerData: backend ? backend.layers : []
+        property int selectedIndex: backend ? backend.selectedLayerIndex : -1
+        property var selectedLayer: selectedIndex >= 0 && layerData && selectedIndex < layerData.length ? layerData[selectedIndex] : null
 
         // ─── Left: Layer Stack ─────────────────────────────────
         ColumnLayout {
@@ -588,11 +588,13 @@ Item {
         x: (parent.width - width) / 2
         y: (parent.height - height) / 2
         modal: true
-        padding: 20
+        padding: 24
+        width: 360
 
         ColumnLayout {
+            id: savePresetCol
             spacing: 16
-            width: 300
+            width: parent.width - 48 // Account for padding
             Text {
                 text: "Enter preset name:"
                 color: "#a0a0a6"
@@ -606,23 +608,32 @@ Item {
             }
         }
 
-        footer: RowLayout {
-            spacing: 12
-            Layout.margins: 16
-            Item { Layout.fillWidth: true }
-            Button {
-                text: "Cancel"
-                onClicked: savePresetDialog.reject()
-                implicitWidth: 100
-                background: Rectangle { color: "#2a2a2e"; radius: 6; border.color: "#3a3a3e" }
-                contentItem: Text { text: "Cancel"; color: "#f0f0f2"; horizontalAlignment: Text.AlignHCenter }
-            }
-            Button {
-                text: "Save"
-                onClicked: savePresetDialog.accept()
-                implicitWidth: 100
-                background: Rectangle { color: "#618FF0"; radius: 6 }
-                contentItem: Text { text: "Save"; color: "#ffffff"; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+        footer: Item {
+            implicitHeight: 72
+            width: parent.width
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 24
+                anchors.rightMargin: 24
+                anchors.bottomMargin: 16
+                spacing: 12
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: "Cancel"
+                    onClicked: savePresetDialog.reject()
+                    implicitWidth: 100
+                    implicitHeight: 36
+                    background: Rectangle { color: "#2a2a2e"; radius: 6; border.color: "#3a3a3e" }
+                    contentItem: Text { text: "Cancel"; color: "#f0f0f2"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                }
+                Button {
+                    text: "Save"
+                    onClicked: savePresetDialog.accept()
+                    implicitWidth: 100
+                    implicitHeight: 36
+                    background: Rectangle { color: "#618FF0"; radius: 6 }
+                    contentItem: Text { text: "Save"; color: "#ffffff"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                }
             }
         }
 

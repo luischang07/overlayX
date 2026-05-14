@@ -53,10 +53,16 @@ namespace overlayx
       if (!m_renderTarget || !m_hwnd)
         return;
 
-      HDC hdc_screen = GetDC(NULL);
-      int screenW = GetDeviceCaps(hdc_screen, DESKTOPHORZRES);
-      int screenH = GetDeviceCaps(hdc_screen, DESKTOPVERTRES);
-      ReleaseDC(NULL, hdc_screen);
+      // 1. Dirty check: Only redraw if config changed OR countdown should be visible.
+      // Use a forgiving gate so a transient runtime/config mismatch cannot blank the overlay.
+      bool isCountdownRunning = config.countdown.enabled || config.countdownRuntime.enabled;
+      if (!m_firstRender && config == m_lastRenderedConfig && !isCountdownRunning)
+      {
+        return;
+      }
+
+      int screenW = GetSystemMetrics(SM_CXSCREEN);
+      int screenH = GetSystemMetrics(SM_CYSCREEN);
 
       // Update SpikeDetector with this overlay window's top-left screen offset
       if (m_hwnd)
@@ -64,13 +70,12 @@ namespace overlayx
         RECT wr = {};
         if (GetWindowRect(m_hwnd, &wr))
         {
-
           // Try to get DPI for the window (Windows 10+)
           UINT dpi = 0;
           HMODULE shcore = LoadLibraryA("Shcore.dll");
           if (shcore)
           {
-            typedef HRESULT(WINAPI *GetDpiForMonitor_t)(HMONITOR, int, UINT*, UINT*);
+            typedef HRESULT(WINAPI * GetDpiForMonitor_t)(HMONITOR, int, UINT *, UINT *);
             GetDpiForMonitor_t f = (GetDpiForMonitor_t)GetProcAddress(shcore, "GetDpiForMonitor");
             if (f)
             {
@@ -93,25 +98,46 @@ namespace overlayx
         }
       }
 
-      // Create a memory DC and 32-bit ARGB DIB
-      HDC screenDC = GetDC(nullptr);
-      HDC memDC = CreateCompatibleDC(screenDC);
+      // Ensure buffers are created and correctly sized
+      if (!ensureBuffers(screenW, screenH))
+        return;
 
-      BITMAPINFO bmi = {};
-      bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-      bmi.bmiHeader.biWidth = screenW;
-      bmi.bmiHeader.biHeight = -screenH; // top-down
-      bmi.bmiHeader.biPlanes = 1;
-      bmi.bmiHeader.biBitCount = 32;
-      bmi.bmiHeader.biCompression = BI_RGB;
+      // Remember whether this is the very first render
+      bool wasFirstRender = m_firstRender;
 
-      void *bits = nullptr;
-      HBITMAP hBitmap = CreateDIBSection(memDC, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
-      HGDIOBJ oldBitmap = SelectObject(memDC, hBitmap);
+      // Build current countdown string to check for changes
+      wchar_t countdownFull[64] = L"";
+      if (config.countdown.enabled)
+      {
+        // Re-calculate time exactly as in drawCountdown for comparison
+        long long remainingMs = static_cast<long long>(config.countdown.duration) * 1000LL;
+        if (config.countdownRuntime.enabled && config.countdownRuntime.startTimestampMs > 0)
+        {
+          using namespace std::chrono;
+          long long nowMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+          remainingMs = std::max(0LL, static_cast<long long>(config.countdown.duration) * 1000LL - (nowMs - config.countdownRuntime.startTimestampMs));
+        }
+        else if (config.countdownRuntime.pausedRemainingMs >= 0)
+        {
+          remainingMs = config.countdownRuntime.pausedRemainingMs;
+        }
+        int rs = (int)((remainingMs + 999) / 1000);
+        int rc = (int)((remainingMs % 1000) / 10);
+        swprintf_s(countdownFull, L"%d:%02d.%02d", rs / 60, rs % 60, rc);
+      }
 
-      // Bind D2D to the memory DC
-      RECT rc = {0, 0, screenW, screenH};
-      m_renderTarget->BindDC(memDC, &rc);
+      // Optimize: Only update layered window if something meaningful changed
+      bool configChanged = !(m_lastRenderedConfig == config);
+      bool countdownTextChanged = (wcscmp(countdownFull, m_lastCountdownText) != 0);
+
+      if (!m_firstRender && !configChanged && !countdownTextChanged)
+      {
+        return;
+      }
+
+      m_lastRenderedConfig = config;
+      wcscpy_s(m_lastCountdownText, countdownFull);
+      m_firstRender = false;
 
       m_renderTarget->BeginDraw();
       D2D1_COLOR_F clearColor;
@@ -195,33 +221,30 @@ namespace overlayx
       }
 
       // Render countdown if visible and DWrite available
+      RECT countdownRect = {0, 0, 0, 0};
       if (config.countdown.enabled && m_dwriteFactory)
       {
-        drawCountdown(screenW, screenH, config.countdown, config.countdownRuntime);
+        drawCountdown(screenW, screenH, config.countdown, config.countdownRuntime, &countdownRect);
+        m_lastCountdownRect = countdownRect;
       }
 
 #ifdef SPIKE_DETECTION_ENABLED
-      drawDetectionRegion(screenW, screenH);
+      // drawDetectionRegion(screenW, screenH);
 #endif
 
       m_renderTarget->EndDraw();
 
-      // Update the layered window with per-pixel alpha
-      POINT ptSrc = {0, 0};
-      POINT ptDst = {0, 0};
-      SIZE sz = {screenW, screenH};
+      // Update the layered window with per-pixel alpha.
+      // UpdateLayeredWindow expects the full window size, so we always composite the full surface.
       BLENDFUNCTION blend = {};
       blend.BlendOp = AC_SRC_OVER;
       blend.SourceConstantAlpha = 255;
       blend.AlphaFormat = AC_SRC_ALPHA;
 
-      UpdateLayeredWindow(m_hwnd, screenDC, &ptDst, &sz, memDC, &ptSrc, 0, &blend, ULW_ALPHA);
-
-      // Cleanup GDI resources
-      SelectObject(memDC, oldBitmap);
-      DeleteObject(hBitmap);
-      DeleteDC(memDC);
-      ReleaseDC(nullptr, screenDC);
+      POINT ptSrc = {0, 0};
+      POINT ptDst = {0, 0};
+      SIZE sz = {screenW, screenH};
+      UpdateLayeredWindow(m_hwnd, NULL, &ptDst, &sz, m_memDC, &ptSrc, 0, &blend, ULW_ALPHA);
     }
 
     void resize(int, int) override
@@ -231,6 +254,8 @@ namespace overlayx
 
     void cleanup() override
     {
+      cleanupBuffers();
+
       if (m_renderTarget)
       {
         m_renderTarget->Release();
@@ -259,6 +284,62 @@ namespace overlayx
     }
 
   private:
+    bool ensureBuffers(int width, int height)
+    {
+      if (m_memDC && m_bufferWidth == width && m_bufferHeight == height)
+        return true;
+
+      cleanupBuffers();
+
+      HDC screenDC = GetDC(nullptr);
+      m_memDC = CreateCompatibleDC(screenDC);
+
+      BITMAPINFO bmi = {};
+      bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+      bmi.bmiHeader.biWidth = width;
+      bmi.bmiHeader.biHeight = -height; // top-down
+      bmi.bmiHeader.biPlanes = 1;
+      bmi.bmiHeader.biBitCount = 32;
+      bmi.bmiHeader.biCompression = BI_RGB;
+
+      m_hBitmap = CreateDIBSection(m_memDC, &bmi, DIB_RGB_COLORS, &m_bufferBits, nullptr, 0);
+      if (!m_hBitmap)
+      {
+        DeleteDC(m_memDC);
+        m_memDC = nullptr;
+        ReleaseDC(nullptr, screenDC);
+        return false;
+      }
+
+      m_oldBitmap = (HBITMAP)SelectObject(m_memDC, m_hBitmap);
+      m_bufferWidth = width;
+      m_bufferHeight = height;
+
+      // Re-bind D2D to the new memory DC and rectangle
+      RECT rc = {0, 0, width, height};
+      HRESULT hr = m_renderTarget->BindDC(m_memDC, &rc);
+
+      ReleaseDC(nullptr, screenDC);
+      return SUCCEEDED(hr);
+    }
+
+    void cleanupBuffers()
+    {
+      if (m_memDC)
+      {
+        if (m_oldBitmap)
+          SelectObject(m_memDC, m_oldBitmap);
+        if (m_hBitmap)
+          DeleteObject(m_hBitmap);
+        DeleteDC(m_memDC);
+        m_memDC = nullptr;
+        m_hBitmap = nullptr;
+        m_oldBitmap = nullptr;
+        m_bufferBits = nullptr;
+        m_bufferWidth = 0;
+        m_bufferHeight = 0;
+      }
+    }
     void drawCross(float cx, float cy, float w, float h, float thickness, float gap,
                    ID2D1SolidColorBrush *brush, ID2D1SolidColorBrush *outlineBrush = nullptr, float outlineThickness = 0.0f)
     {
@@ -354,7 +435,7 @@ namespace overlayx
       m_renderTarget->DrawEllipse(ellipse, brush, thickness);
     }
 
-    void drawCountdown(int screenW, int screenH, const CountdownConfig &config, const CountdownRuntime &runtime)
+    void drawCountdown(int screenW, int screenH, const CountdownConfig &config, const CountdownRuntime &runtime, RECT *outRect = nullptr)
     {
       if (!m_dwriteFactory)
         return;
@@ -399,7 +480,7 @@ namespace overlayx
             &m_msTextFormat);
         if (SUCCEEDED(hr) && m_msTextFormat)
         {
-          m_msTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+          m_msTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
           m_msTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         }
 
@@ -464,10 +545,16 @@ namespace overlayx
         if (m_msTextFormat)
         {
           D2D1_RECT_F msRect;
-          msRect.left = x + (textWidth * 0.3f);
-          msRect.top = y + (textHeight * 0.2f);
-          msRect.right = x + (textWidth * 0.5f);
-          msRect.bottom = y + (textHeight * 0.5f);
+          // Position it closer to the seconds (which are centered)
+          // Rough estimate: each character in "00:00" is about 0.5 * fontSize wide
+          // Position it closer to the seconds and slightly higher for better visual balance
+          // Position it closer to the seconds and higher up as requested
+          // Position it closer to the seconds and slightly lower (more centered vertically)
+          float msXOffset = config.fontSize * 1.35f;
+          msRect.left = x + msXOffset;
+          msRect.top = y - (config.fontSize * 0.15f);
+          msRect.right = x + msXOffset + (config.fontSize * 2.0f);
+          msRect.bottom = y + (config.fontSize * 0.45f);
 
           m_renderTarget->DrawText(
               msBuffer,
@@ -478,6 +565,18 @@ namespace overlayx
         }
 
         brush->Release();
+
+        if (outRect)
+        {
+          LONG l = static_cast<LONG>(std::floor(secondsRect.left));
+          LONG t = static_cast<LONG>(std::floor(secondsRect.top));
+          LONG r = static_cast<LONG>(std::ceil(secondsRect.right));
+          LONG b = static_cast<LONG>(std::ceil(secondsRect.bottom));
+          outRect->left = l;
+          outRect->top = t;
+          outRect->right = r;
+          outRect->bottom = b;
+        }
       }
     }
 
@@ -509,7 +608,6 @@ namespace overlayx
       rect.right = static_cast<float>(region.x + region.w - offX);
       rect.bottom = static_cast<float>(region.y + region.h - offY);
 
-
       m_renderTarget->DrawRectangle(rect, boxBrush, 2.0f);
       boxBrush->Release();
     }
@@ -522,6 +620,21 @@ namespace overlayx
     IDWriteTextFormat *m_textFormat{nullptr};
     IDWriteTextFormat *m_msTextFormat{nullptr};
     float m_lastFontSize = 0.0f;
+
+    // Persistent GDI resources for layered window updates
+    HDC m_memDC{nullptr};
+    HBITMAP m_hBitmap{nullptr};
+    HBITMAP m_oldBitmap{nullptr};
+    void *m_bufferBits{nullptr};
+    int m_bufferWidth{0};
+    int m_bufferHeight{0};
+
+    // Optimization state
+    OverlayConfig m_lastRenderedConfig;
+    CountdownRuntime m_lastRuntime;
+    wchar_t m_lastCountdownText[64]{0};
+    bool m_firstRender{true};
+    RECT m_lastCountdownRect{0, 0, 0, 0};
   };
 
 } // namespace overlayx

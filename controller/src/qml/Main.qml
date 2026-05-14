@@ -35,8 +35,8 @@ ApplicationWindow {
             Layout.fillHeight: true
             Layout.preferredWidth: 250
             currentTab: root.currentTab
-            engineConnected: backend.engineConnected
-            editMode: backend.editMode
+            engineConnected: backend ? backend.engineConnected : false
+            editMode: backend ? backend.editMode : false
             onTabSelected: function(tab) { root.currentTab = tab }
         }
 

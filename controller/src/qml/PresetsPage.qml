@@ -28,8 +28,8 @@ ScrollView {
             rowSpacing: 12
             Layout.fillWidth: true
 
-            property var activeLayer: (backend.selectedLayerIndex >= 0 && backend.selectedLayerIndex < backend.layers.length)
-                                      ? backend.layers[backend.selectedLayerIndex] : null
+            property var activeLayer: backend ? ((backend.selectedLayerIndex >= 0 && backend.selectedLayerIndex < backend.layers.length)
+                                      ? backend.layers[backend.selectedLayerIndex] : null) : null
 
             Text { text: "Horizontal %"; font.pixelSize: 14; color: "#a0a0a6"; Layout.preferredWidth: 100 }
             Slider {
@@ -120,7 +120,7 @@ ScrollView {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(contentHeight, 300)
             clip: true
-            model: backend.activePresetInstances
+            model: backend ? backend.activePresetInstances : []
 
             delegate: Item {
                 id: instanceDelegate
@@ -302,7 +302,7 @@ ScrollView {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(contentHeight, 160)
             clip: true
-            model: backend.savedPositions
+            model: backend ? backend.savedPositions : []
 
             delegate: ItemDelegate {
                 id: posDelegate
@@ -446,7 +446,7 @@ ScrollView {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(contentHeight, 300)
             clip: true
-            model: backend.savedPresets
+            model: backend ? backend.savedPresets : []
 
             delegate: ItemDelegate {
                 id: presetDelegate

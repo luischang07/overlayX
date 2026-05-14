@@ -37,6 +37,10 @@ public:
         m_callback = std::move(callback);
     }
 
+    void setOnDisconnected(DisconnectCallback callback) override {
+        m_onDisconnected = std::move(callback);
+    }
+
     [[nodiscard]] bool isConnected() const override {
         return m_connected;
     }
@@ -70,6 +74,9 @@ private:
                 // Pipe broken — Controller likely exited
                 closePipe();
                 m_connected = false;
+                if (m_onDisconnected) {
+                    m_onDisconnected();
+                }
                 if (m_running) {
                     // Try to reconnect
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -112,6 +119,7 @@ private:
     std::atomic<bool>   m_running{false};
     std::atomic<bool>   m_connected{false};
     ConfigCallback      m_callback;
+    DisconnectCallback  m_onDisconnected;
     std::jthread        m_readThread;
 };
 

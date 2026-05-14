@@ -110,6 +110,7 @@ private:
 
     void closePipe() {
         if (m_hPipe != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(m_hPipe);
             DisconnectNamedPipe(m_hPipe);
             CloseHandle(m_hPipe);
             m_hPipe = INVALID_HANDLE_VALUE;
