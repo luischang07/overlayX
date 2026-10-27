@@ -207,6 +207,10 @@ namespace overlayx
               drawCircle(cx, cy, layer.width, layer.height, layer.thickness,
                          brush, outlineBrush, layer.outlineThickness);
               break;
+            case ShapeType::Square:
+              drawSquare(cx, cy, layer.width, layer.height, layer.thickness,
+                         brush, outlineBrush, layer.outlineThickness);
+              break;
             }
 
             // Reset transform
@@ -433,6 +437,39 @@ namespace overlayx
       }
 
       m_renderTarget->DrawEllipse(ellipse, brush, thickness);
+    }
+
+    void drawSquare(float cx, float cy, float w, float h, float thickness,
+                    ID2D1SolidColorBrush *brush, ID2D1SolidColorBrush *outlineBrush = nullptr, float outlineThickness = 0.0f)
+    {
+      float halfW = w / 2.0f;
+      float halfH = h / 2.0f;
+
+      D2D1_RECT_F rect = D2D1::RectF(cx - halfW, cy - halfH, cx + halfW, cy + halfH);
+
+      if (thickness <= 0.0f)
+      {
+        // Solid/filled square
+        if (outlineBrush && outlineThickness > 0.0f)
+        {
+          D2D1_RECT_F outlineRect = D2D1::RectF(
+              rect.left - outlineThickness,
+              rect.top - outlineThickness,
+              rect.right + outlineThickness,
+              rect.bottom + outlineThickness);
+          m_renderTarget->FillRectangle(outlineRect, outlineBrush);
+        }
+        m_renderTarget->FillRectangle(rect, brush);
+      }
+      else
+      {
+        // Hollow/stroked square
+        if (outlineBrush && outlineThickness > 0.0f)
+        {
+          m_renderTarget->DrawRectangle(rect, outlineBrush, thickness + (outlineThickness * 2.0f));
+        }
+        m_renderTarget->DrawRectangle(rect, brush, thickness);
+      }
     }
 
     void drawCountdown(int screenW, int screenH, const CountdownConfig &config, const CountdownRuntime &runtime, RECT *outRect = nullptr)

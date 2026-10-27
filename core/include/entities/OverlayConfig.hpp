@@ -12,13 +12,15 @@ namespace overlayx
   {
     Cross = 0,
     Dot = 1,
-    Circle = 2
+    Circle = 2,
+    Square = 3
   };
 
   NLOHMANN_JSON_SERIALIZE_ENUM(ShapeType, {
                                               {ShapeType::Cross, "cross"},
                                               {ShapeType::Dot, "dot"},
                                               {ShapeType::Circle, "circle"},
+                                              {ShapeType::Square, "square"},
                                           })
 
   // ─── Color ─────────────────────────────────────────────────
@@ -271,6 +273,46 @@ namespace overlayx
     r.pausedRemainingMs = j.value("pausedRemainingMs", r.pausedRemainingMs);
   }
 
+  struct MouseTeleportConfig
+  {
+    bool enabled = true;
+    int hotkeyVk = 0;
+    int hotkeyModifiers = 0;
+    float posX = 0.5f;
+    float posY = 0.5f;
+    int durationMs = 120; // 50ms - 300ms for humanized curve
+
+    bool operator==(const MouseTeleportConfig &o) const
+    {
+      return enabled == o.enabled && hotkeyVk == o.hotkeyVk &&
+             hotkeyModifiers == o.hotkeyModifiers &&
+             posX == o.posX && posY == o.posY &&
+             durationMs == o.durationMs;
+    }
+    bool operator!=(const MouseTeleportConfig &o) const { return !(*this == o); }
+  };
+
+  inline void to_json(nlohmann::json &j, const MouseTeleportConfig &m)
+  {
+    j = nlohmann::json{
+        {"enabled", m.enabled},
+        {"hotkeyVk", m.hotkeyVk},
+        {"hotkeyModifiers", m.hotkeyModifiers},
+        {"posX", m.posX},
+        {"posY", m.posY},
+        {"durationMs", m.durationMs}};
+  }
+
+  inline void from_json(const nlohmann::json &j, MouseTeleportConfig &m)
+  {
+    m.enabled = j.value("enabled", m.enabled);
+    m.hotkeyVk = j.value("hotkeyVk", m.hotkeyVk);
+    m.hotkeyModifiers = j.value("hotkeyModifiers", m.hotkeyModifiers);
+    m.posX = j.value("posX", m.posX);
+    m.posY = j.value("posY", m.posY);
+    m.durationMs = j.value("durationMs", m.durationMs);
+  }
+
   struct OverlayConfig
   {
     float posX = 0.5f; // Global offset/base X
@@ -285,6 +327,7 @@ namespace overlayx
     std::vector<CrosshairPreset> savedPresets;
     CountdownConfig countdown;
     CountdownRuntime countdownRuntime;
+    MouseTeleportConfig mouseTeleport;
 
     // Transient signals (not saved to disk necessarily, but sent via IPC)
     bool shouldExit = false;
@@ -301,6 +344,7 @@ namespace overlayx
              editMode == o.editMode && layers == o.layers &&
              countdown == o.countdown &&
              countdownRuntime == o.countdownRuntime &&
+             mouseTeleport == o.mouseTeleport &&
              shouldExit == o.shouldExit;
     }
     bool operator!=(const OverlayConfig &o) const { return !(*this == o); }
@@ -309,7 +353,7 @@ namespace overlayx
   inline void to_json(nlohmann::json &j, const OverlayConfig &c)
   {
     j = nlohmann::json{
-        {"posX", c.posX}, {"posY", c.posY}, {"hotkey", c.hotkey}, {"hotkeyModifiers", c.hotkeyModifiers}, {"visible", c.visible}, {"editMode", c.editMode}, {"layers", c.layers}, {"savedPositions", c.savedPositions}, {"savedPresets", c.savedPresets}, {"countdown", c.countdown}, {"countdownRuntime", c.countdownRuntime}, {"shouldExit", c.shouldExit}};
+        {"posX", c.posX}, {"posY", c.posY}, {"hotkey", c.hotkey}, {"hotkeyModifiers", c.hotkeyModifiers}, {"visible", c.visible}, {"editMode", c.editMode}, {"layers", c.layers}, {"savedPositions", c.savedPositions}, {"savedPresets", c.savedPresets}, {"countdown", c.countdown}, {"countdownRuntime", c.countdownRuntime}, {"mouseTeleport", c.mouseTeleport}, {"shouldExit", c.shouldExit}};
   }
 
   inline void from_json(const nlohmann::json &j, OverlayConfig &c)
@@ -342,6 +386,10 @@ namespace overlayx
     if (j.contains("countdownRuntime"))
     {
       j.at("countdownRuntime").get_to(c.countdownRuntime);
+    }
+    if (j.contains("mouseTeleport"))
+    {
+      j.at("mouseTeleport").get_to(c.mouseTeleport);
     }
     if (j.contains("shouldExit"))
     {

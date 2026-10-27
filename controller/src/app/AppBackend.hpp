@@ -14,6 +14,7 @@
 #include <iomanip>
 #include <memory>
 #include <windows.h> // For GetTickCount64, GetAsyncKeyState
+#include <thread>
 #include <chrono>
 #include <set>
 
@@ -59,6 +60,14 @@ namespace overlayx
     Q_PROPERTY(QString countdownResetHotkey READ countdownResetHotkey NOTIFY configChanged)
     Q_PROPERTY(bool countdownDetectionEnabled READ countdownDetectionEnabled WRITE setCountdownDetectionEnabled NOTIFY configChanged)
     Q_PROPERTY(QString countdownDetectionHotkey READ countdownDetectionHotkey NOTIFY configChanged)
+
+    // ─── Mouse Warp / Teleport Properties ──────────────────
+    Q_PROPERTY(bool mouseWarpEnabled READ mouseWarpEnabled WRITE setMouseWarpEnabled NOTIFY configChanged)
+    Q_PROPERTY(float mouseWarpPosX READ mouseWarpPosX WRITE setMouseWarpPosX NOTIFY configChanged)
+    Q_PROPERTY(float mouseWarpPosY READ mouseWarpPosY WRITE setMouseWarpPosY NOTIFY configChanged)
+    Q_PROPERTY(int mouseWarpDurationMs READ mouseWarpDurationMs WRITE setMouseWarpDurationMs NOTIFY configChanged)
+    Q_PROPERTY(QString mouseWarpHotkey READ mouseWarpHotkey NOTIFY configChanged)
+    Q_PROPERTY(bool isPickingCoordinate READ isPickingCoordinate NOTIFY isPickingCoordinateChanged)
 
   public:
     explicit AppBackend(std::unique_ptr<IConfigRepository> repo,
@@ -264,6 +273,79 @@ namespace overlayx
         m_config.countdown.posY = v;
         markDirty();
       }
+    }
+
+    // ─── Mouse Warp / Teleport Accessors ───────────────────
+    bool mouseWarpEnabled() const { return m_config.mouseTeleport.enabled; }
+    float mouseWarpPosX() const { return m_config.mouseTeleport.posX; }
+    float mouseWarpPosY() const { return m_config.mouseTeleport.posY; }
+    int mouseWarpDurationMs() const { return m_config.mouseTeleport.durationMs; }
+    QString mouseWarpHotkey() const
+    {
+      return formatHotkeyString(m_config.mouseTeleport.hotkeyVk, m_config.mouseTeleport.hotkeyModifiers);
+    }
+    bool isPickingCoordinate() const { return m_isPickingCoordinate; }
+
+    void setMouseWarpEnabled(bool v)
+    {
+      if (m_config.mouseTeleport.enabled != v)
+      {
+        m_config.mouseTeleport.enabled = v;
+        markDirty();
+      }
+    }
+    void setMouseWarpPosX(float v)
+    {
+      float clamped = std::clamp(v, 0.0f, 1.0f);
+      if (std::abs(m_config.mouseTeleport.posX - clamped) > 0.00001f)
+      {
+        m_config.mouseTeleport.posX = clamped;
+        markDirty();
+      }
+    }
+    void setMouseWarpPosY(float v)
+    {
+      float clamped = std::clamp(v, 0.0f, 1.0f);
+      if (std::abs(m_config.mouseTeleport.posY - clamped) > 0.00001f)
+      {
+        m_config.mouseTeleport.posY = clamped;
+        markDirty();
+      }
+    }
+    void setMouseWarpDurationMs(int v)
+    {
+      int clamped = std::clamp(v, 10, 1000);
+      if (m_config.mouseTeleport.durationMs != clamped)
+      {
+        m_config.mouseTeleport.durationMs = clamped;
+        markDirty();
+      }
+    }
+
+    Q_INVOKABLE void startPickingCoordinate()
+    {
+      m_isPickingCoordinate = true;
+      m_pickingTimer = 10; // short delay so the button click itself doesn't trigger pick
+      emit isPickingCoordinateChanged();
+    }
+
+    Q_INVOKABLE void cancelPickingCoordinate()
+    {
+      if (m_isPickingCoordinate)
+      {
+        m_isPickingCoordinate = false;
+        emit isPickingCoordinateChanged();
+      }
+    }
+
+    Q_INVOKABLE void clearMouseWarpHotkey()
+    {
+      setInstanceHotkey("mouse_warp", 0, 0);
+    }
+
+    Q_INVOKABLE void triggerHumanizedWarp()
+    {
+      performHumanizedWarp(m_config.mouseTeleport.posX, m_config.mouseTeleport.posY, m_config.mouseTeleport.durationMs);
     }
     void setCountdownFontSize(int v)
     {
@@ -691,6 +773,14 @@ namespace overlayx
         return;
       }
 
+      if (sid == "mouse_warp")
+      {
+        m_config.mouseTeleport.hotkeyVk = vk;
+        m_config.mouseTeleport.hotkeyModifiers = modifiers;
+        markDirty();
+        return;
+      }
+
       std::string uid = "";
       size_t underscorePos = sid.find('_');
       if (underscorePos != std::string::npos)
@@ -1089,6 +1179,7 @@ namespace overlayx
     void engineStatusChanged();
     void selectedLayerIndexChanged();
     void isListeningForHotkeyChanged();
+    void isPickingCoordinateChanged();
 
   private:
     void updateLayerPosition(int i, float val, bool isY)
@@ -1276,13 +1367,129 @@ namespace overlayx
     bool m_countdownStopPressedState{false};
     bool m_countdownResetPressedState{false};
     bool m_countdownDetectionPressedState{false};
+    bool m_mouseWarpPressedState{false};
 
     bool m_isListening{false};
     std::string m_listeningInstanceId;
     int m_listeningTimer{0};
 
+    bool m_isPickingCoordinate{false};
+    int m_pickingTimer{0};
+
+    void performHumanizedWarp(float normTargetX, float normTargetY, int durationMs = 120)
+    {
+      POINT startPt;
+      if (!GetCursorPos(&startPt))
+        return;
+
+      int screenW = GetSystemMetrics(SM_CXSCREEN);
+      int screenH = GetSystemMetrics(SM_CYSCREEN);
+      int endX = std::clamp(static_cast<int>(std::round(normTargetX * (screenW - 1))), 0, screenW - 1);
+      int endY = std::clamp(static_cast<int>(std::round(normTargetY * (screenH - 1))), 0, screenH - 1);
+
+      int startX = startPt.x;
+      int startY = startPt.y;
+
+      float dist = std::hypot(static_cast<float>(endX - startX), static_cast<float>(endY - startY));
+      if (dist < 2.0f)
+      {
+        SetCursorPos(endX, endY);
+        return;
+      }
+
+      // Run trajectory asynchronously in background thread so GUI remains responsive
+      std::thread([startX, startY, endX, endY, dist, durationMs]() {
+        // Generate two control points for cubic Bezier with natural curvature
+        std::mt19937 rng(static_cast<unsigned int>(GetTickCount64()));
+        std::uniform_real_distribution<float> deviationDist(-0.18f, 0.18f);
+
+        float dx = static_cast<float>(endX - startX);
+        float dy = static_cast<float>(endY - startY);
+
+        // Perpendicular vector for arc curvature
+        float perpX = -dy;
+        float perpY = dx;
+
+        float dev1 = deviationDist(rng);
+        float dev2 = deviationDist(rng);
+
+        float p1x = startX + dx * 0.30f + perpX * dev1;
+        float p1y = startY + dy * 0.30f + perpY * dev1;
+
+        float p2x = startX + dx * 0.70f + perpX * dev2;
+        float p2y = startY + dy * 0.70f + perpY * dev2;
+
+        int totalDuration = std::clamp(durationMs, 20, 500);
+        auto startTime = std::chrono::steady_clock::now();
+
+        while (true)
+        {
+          auto now = std::chrono::steady_clock::now();
+          auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+          float rawT = static_cast<float>(elapsed) / static_cast<float>(totalDuration);
+          if (rawT >= 1.0f)
+            break;
+
+          // Ease-in, ease-out smoothstep curve: 3*t^2 - 2*t^3
+          float t = rawT * rawT * (3.0f - 2.0f * rawT);
+          float u = 1.0f - t;
+
+          // Cubic Bezier evaluation
+          float curX = (u * u * u * startX) + (3.0f * u * u * t * p1x) + (3.0f * u * t * t * p2x) + (t * t * t * endX);
+          float curY = (u * u * u * startY) + (3.0f * u * u * t * p1y) + (3.0f * u * t * t * p2y) + (t * t * t * endY);
+
+          SetCursorPos(static_cast<int>(std::round(curX)), static_cast<int>(std::round(curY)));
+
+          // Sleep 4-6ms for ~165Hz-250Hz smooth humanized step rate
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+
+        // Final snap to target
+        SetCursorPos(endX, endY);
+      }).detach();
+    }
+
     void pollHotkeys()
     {
+      // Handle interactive coordinate picking
+      if (m_isPickingCoordinate)
+      {
+        if (m_pickingTimer > 0)
+        {
+          m_pickingTimer--;
+          return;
+        }
+
+        // Cancel on Escape or Right Click
+        if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) || (GetAsyncKeyState(VK_RBUTTON) & 0x8000))
+        {
+          m_isPickingCoordinate = false;
+          emit isPickingCoordinateChanged();
+          return;
+        }
+
+        // On Left Click, capture mouse position
+        if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
+        {
+          POINT pt;
+          if (GetCursorPos(&pt))
+          {
+            int screenW = GetSystemMetrics(SM_CXSCREEN);
+            int screenH = GetSystemMetrics(SM_CYSCREEN);
+            if (screenW > 0 && screenH > 0)
+            {
+              m_config.mouseTeleport.posX = std::clamp(static_cast<float>(pt.x) / static_cast<float>(screenW), 0.0f, 1.0f);
+              m_config.mouseTeleport.posY = std::clamp(static_cast<float>(pt.y) / static_cast<float>(screenH), 0.0f, 1.0f);
+            }
+          }
+          m_isPickingCoordinate = false;
+          emit isPickingCoordinateChanged();
+          markDirty();
+          return;
+        }
+        return;
+      }
+
       if (m_isListening)
       {
         if (m_listeningTimer > 0)
@@ -1456,6 +1663,27 @@ namespace overlayx
           setCountdownDetectionEnabled(!m_config.countdown.detectionEnabled);
         }
         m_countdownDetectionPressedState = detectPressed;
+      }
+
+      // Mouse Warp / Teleport hotkey
+      if (m_config.mouseTeleport.enabled && m_config.mouseTeleport.hotkeyVk != 0)
+      {
+        bool warpPressed = (GetAsyncKeyState(m_config.mouseTeleport.hotkeyVk) & 0x8000) != 0;
+        if (warpPressed && m_config.mouseTeleport.hotkeyModifiers != 0)
+        {
+          if ((m_config.mouseTeleport.hotkeyModifiers & 1) && !(GetAsyncKeyState(VK_CONTROL) & 0x8000))
+            warpPressed = false;
+          if ((m_config.mouseTeleport.hotkeyModifiers & 2) && !(GetAsyncKeyState(VK_SHIFT) & 0x8000))
+            warpPressed = false;
+          if ((m_config.mouseTeleport.hotkeyModifiers & 4) && !(GetAsyncKeyState(VK_MENU) & 0x8000))
+            warpPressed = false;
+        }
+
+        if (warpPressed && !m_mouseWarpPressedState)
+        {
+          performHumanizedWarp(m_config.mouseTeleport.posX, m_config.mouseTeleport.posY, m_config.mouseTeleport.durationMs);
+        }
+        m_mouseWarpPressedState = warpPressed;
       }
 
       // Master hotkey toggle

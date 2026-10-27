@@ -1,0 +1,142 @@
+{
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\app\\AppBackend.hpp": {
+    "mtime": 1793110676.4534636,
+    "ast_hash": "d4c9cd9c27b8e5a5a1441223f82b7310",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\app\\ControllerApp.hpp": {
+    "mtime": 1778503810.1117277,
+    "ast_hash": "72d6b6fc9ca6667611a33ad7a5eab8b4",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\infrastructure\\JsonConfigRepository.hpp": {
+    "mtime": 1778502656.6854427,
+    "ast_hash": "24abb78a6f11835859d7c3f44fcb41f5",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\infrastructure\\NamedPipeServer.hpp": {
+    "mtime": 1778623135.269097,
+    "ast_hash": "0128388a3871461b4c2d873176c59991",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\main.cpp": {
+    "mtime": 1778653298.3746815,
+    "ast_hash": "0b3573733ad072800446e996812c91aa",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\main_bak.cpp": {
+    "mtime": 1778507717.3441465,
+    "ast_hash": "a928e5e22d43254e829cca1a805ad07b",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\src\\ui\\OverlayUI.hpp": {
+    "mtime": 1778770320.3704903,
+    "ast_hash": "66571956620a9332bfbe3e027312aeff",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\core\\include\\FileSystemUtils.hpp": {
+    "mtime": 1778620046.53722,
+    "ast_hash": "024b33fa56d6e0725cfa15a51a0e9413",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\core\\include\\entities\\OverlayConfig.hpp": {
+    "mtime": 1793110339.946422,
+    "ast_hash": "864fdc9b8e4a57d1fe82b10192bed68c",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\core\\include\\interfaces\\IConfigRepository.hpp": {
+    "mtime": 1778502621.0750272,
+    "ast_hash": "052d17af9a0b42c71f6a2c3de53fe201",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\core\\include\\interfaces\\IIPCClient.hpp": {
+    "mtime": 1778623118.3402884,
+    "ast_hash": "6043d248e647ef27b6c1d673684b7e37",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\core\\include\\interfaces\\IIPCServer.hpp": {
+    "mtime": 1778502627.3035247,
+    "ast_hash": "0f91b0dc4310bc9c31b46c95aa1f8d43",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\core\\include\\interfaces\\IRenderer.hpp": {
+    "mtime": 1778502639.063146,
+    "ast_hash": "e72843a00a2be07aa1cc4c8e5a6aa098",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\engine\\src\\app\\EngineApp.hpp": {
+    "mtime": 1778765399.4656916,
+    "ast_hash": "bce8affc20bd4e3d7ddffa4cad79bba3",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\engine\\src\\infrastructure\\NamedPipeClient.hpp": {
+    "mtime": 1778623129.85214,
+    "ast_hash": "13e0534cc64905e318c7e249892a63a5",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\engine\\src\\infrastructure\\OverlayWindow.hpp": {
+    "mtime": 1778764746.4745889,
+    "ast_hash": "b0a8b78370fa02a53a39cae21ed173bf",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\engine\\src\\infrastructure\\SpikeDetector.hpp": {
+    "mtime": 1778767250.8086936,
+    "ast_hash": "8e14524f60535d39e8b28e96678eb8b9",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\engine\\src\\main.cpp": {
+    "mtime": 1778620347.320677,
+    "ast_hash": "c1185713b3ffa07218ee66e4cc939f6d",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\engine\\src\\rendering\\Direct2DRenderer.hpp": {
+    "mtime": 1793110369.8275938,
+    "ast_hash": "cf8fce9aba4dbf9db7cd1df2fe142893",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\overlayx_config.json": {
+    "mtime": 1778770395.6210403,
+    "ast_hash": "6fe8c7cbff72b67fa4bca1c450f7e909",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\shared\\include\\IPCProtocol.hpp": {
+    "mtime": 1778502646.837555,
+    "ast_hash": "122c4e3780271ad758e1f5a88cb72e07",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\CMakeLists.txt": {
+    "mtime": 1778766968.2900226,
+    "ast_hash": "2ba757ee33c96dd359f50080c07d38e4",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\README.md": {
+    "mtime": 1778770832.9051647,
+    "ast_hash": "a9830df98d47d81a3d6d558b04567b10",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\CMakeLists.txt": {
+    "mtime": 1778654928.7953663,
+    "ast_hash": "c4933a4d62756bf3d593a89d9c383f8b",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\controller\\TECHNICAL_DOC.md": {
+    "mtime": 1778770643.5346088,
+    "ast_hash": "1004b037002be22b08cada9d7bedc79a",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\spike.png": {
+    "mtime": 1778612067.124651,
+    "ast_hash": "9fa6fac1076d1d3672f47491476fb053",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\.codex\\hooks.json": {
+    "mtime": 1793107510.2317317,
+    "ast_hash": "1040f00a09ac32466a9c8b32a3fab45e",
+    "semantic_hash": ""
+  },
+  "C:\\Users\\luisc\\Documents\\c++\\overlayX\\AGENTS.md": {
+    "mtime": 1793107584.709817,
+    "ast_hash": "666f65c392bef5c76118467d8f14653b",
+    "semantic_hash": ""
+  }
+}

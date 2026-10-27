@@ -221,7 +221,7 @@ Item {
 
                     ComboBox {
                         id: shapeCombo
-                        model: ["Cross", "Dot", "Circle"]
+                        model: ["Cross", "Dot", "Circle", "Square"]
                         currentIndex: designerRoot.selectedLayer ? designerRoot.selectedLayer.shape : 0
                         Layout.preferredWidth: 160
                         implicitHeight: 34
